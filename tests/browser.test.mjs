@@ -122,6 +122,42 @@ test('Les metadades i la imatge es poden llegir sense JavaScript amb agents de W
   }
 });
 
+test('La barra principal se superposa al dibuix, permet arrossegar i s’oculta en obrir el pop-up', async () => {
+  const page = await browser.newPage({ viewport: { width: 1366, height: 900 }, reducedMotion: 'reduce' });
+  await load(page);
+  const thumb = page.locator('.page-scrollbar-thumb');
+  const rail = page.locator('.page-scrollbar');
+  assert.equal(await rail.count(), 1);
+  assert.equal(await page.evaluate(() => document.documentElement.clientWidth === innerWidth), true);
+  assert.equal(await rail.evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(0, 0, 0, 0)');
+  const box = await thumb.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 120, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForFunction(() => scrollY > 100);
+  const dragged = await page.evaluate(() => scrollY);
+  await page.mouse.wheel(0, 150);
+  await page.waitForFunction(y => scrollY > y, dragged);
+  const wheeled = await page.evaluate(() => scrollY);
+  await page.keyboard.press('PageDown');
+  await page.waitForFunction(y => scrollY > y, wheeled);
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await page.locator('.celebration').scrollIntoViewIfNeeded();
+  assert.equal(await page.evaluate(() => document.documentElement.clientWidth === innerWidth && document.documentElement.scrollWidth <= innerWidth), true);
+  assert.equal(await rail.evaluate(el => el.getBoundingClientRect().right === innerWidth), true);
+  assert.equal(await page.locator('.art-banquet').evaluate(el => el.getBoundingClientRect().right > innerWidth), true);
+  if (process.env.SCREENSHOTS_DIR) await page.screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'banquet-overlay-1920.png') });
+  await page.getByRole('button', { name: 'Afegir invitat', exact: true }).click();
+  assert.equal(await rail.isVisible(), false);
+  const close = page.getByRole('button', { name: 'Tancar finestra', exact: true });
+  assert.equal(await close.textContent(), 'x');
+  await close.click();
+  assert.equal(await page.locator('#guest-dialog').evaluate(el => el.open), false);
+  assert.equal(await rail.isVisible(), true);
+  await page.close();
+});
+
 test('L’accés amb teclat, la localització i els enllaços antics funcionen', async () => {
   const page = await browser.newPage({ reducedMotion: 'reduce' });
   await load(page);
@@ -340,8 +376,10 @@ test('Els camps creixen fins a quatre línies, es contrauen i mantenen les barre
     thumb: getComputedStyle(el, '::-webkit-scrollbar-thumb').backgroundColor,
     radius: getComputedStyle(el, '::-webkit-scrollbar-thumb').borderRadius,
   })));
-  assert.deepEqual(bars[0], bars[1]);
   assert.deepEqual(bars[0], bars[2]);
+  assert.deepEqual({ ...bars[1], width: bars[0].width }, bars[0]);
+  assert.equal(bars[0].track, 'rgba(0, 0, 0, 0)');
+  assert.ok(parseFloat(bars[1].width) < parseFloat(bars[0].width));
   assert.ok(parseFloat(bars[0].width) <= 10);
   if (process.env.SCREENSHOTS_DIR) await page.locator('#guest-dialog').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'camps-320.png') });
   await page.getByRole('button', { name: 'Guardar resposta', exact: true }).click();

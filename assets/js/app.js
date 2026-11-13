@@ -1,5 +1,6 @@
 import { wedding as w } from './content.js';
 import { setupRsvp } from './rsvp.js';
+import { setupPageScrollbar } from './scrollbar.js';
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const art = (name, extra = '') => `<span class="art art-${name} ${extra}" aria-hidden="true"></span>`;
@@ -22,7 +23,7 @@ function rsvp() {
       <p class="rsvp-error" id="rsvp-error" role="alert" tabindex="-1" hidden>Alguna cosa ha anat mal, tona-ho a intentar més tard</p>
     </div>
     <dialog class="guest-dialog" id="guest-dialog" aria-labelledby="guest-dialog-title">
-      <div class="guest-dialog-header"><h3 id="guest-dialog-title">Afegir invitat</h3><button class="close-dialog" id="close-guest-dialog" type="button" aria-label="Tancar finestra"><span aria-hidden="true">×</span></button></div>
+      <div class="guest-dialog-header"><h3 id="guest-dialog-title">Afegir invitat</h3><button class="close-dialog" id="close-guest-dialog" type="button" aria-label="Tancar finestra"><span aria-hidden="true">x</span></button></div>
       <form id="rsvp-form" novalidate autocomplete="off" aria-labelledby="guest-dialog-title">
         <div class="form-field"><label for="guest-name">Nom i cognoms <span aria-hidden="true">*</span></label><textarea class="auto-grow" id="guest-name" name="name" rows="1" required maxlength="160" autocomplete="off" aria-describedby="form-status"></textarea></div>
         <fieldset class="attendance"><legend>Mos acompanyaràs? <span aria-hidden="true">*</span></legend><label class="radio-label"><input type="radio" name="attendance" value="yes" required aria-describedby="form-status"><span>Sí, allí estaré!</span></label><label class="radio-label"><input type="radio" name="attendance" value="no" required aria-describedby="form-status"><span>No podré vindre</span></label></fieldset>
@@ -50,6 +51,7 @@ function landing() {
 
 document.querySelector('#app').innerHTML = landing();
 setupRsvp();
+setupPageScrollbar();
 
 function copyWithSelection(text) {
   const active = document.activeElement;
