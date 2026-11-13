@@ -54,6 +54,7 @@ export function setupRsvp(root = document, { sendReplies = simulateSendReplies, 
   const form = root.querySelector('#rsvp-form');
   if (!form) return;
   const section = root.querySelector('#rsvp') || root;
+  const title = root.querySelector('#rsvp-title');
   const manager = root.querySelector('#guest-manager');
   const grid = root.querySelector('#guest-grid');
   const add = root.querySelector('#add-guest');
@@ -98,6 +99,8 @@ export function setupRsvp(root = document, { sendReplies = simulateSendReplies, 
     state = value;
     section.dataset.state = value;
     section.setAttribute('aria-busy', String(value === 'sending'));
+    title.querySelector('.rsvp-result').hidden = !['success', 'error'].includes(value);
+    title.setAttribute('aria-label', value === 'success' ? 'Confirmació: respostes rebudes' : value === 'error' ? 'Confirmació: error en l’enviament' : 'Confirmació');
   };
   const readReply = () => ({
     name: form.elements.name.value.trim(),
@@ -143,9 +146,13 @@ export function setupRsvp(root = document, { sendReplies = simulateSendReplies, 
       const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       icon.setAttribute('viewBox', '0 0 24 24');
       icon.setAttribute('aria-hidden', 'true');
+      icon.setAttribute('focusable', 'false');
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', 'm15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15Z');
-      icon.append(path);
+      path.setAttribute('d', 'M5.2 14.8c3.6-4 7.3-8.2 11-11.8 1.1-.9 2.1-.7 3 .1l1.3 1.3c.9.9.8 2-.1 2.9-3.8 3.7-7.6 7.6-11.7 11.1-1.5.5-3.1 1.1-4.7 1.2.3-1.6.8-3.3 1.2-4.8ZM14.8 4.5c.8 1.5 2.3 3 3.9 3.8M5.2 14.8c1.4.4 2.7 1.9 3.5 3.6');
+      const tip = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      tip.setAttribute('class', 'pencil-tip');
+      tip.setAttribute('d', 'm4.8 16.8-.8 2.8 2.8-.7c-.3-.9-1.1-1.7-2-2.1Z');
+      icon.append(path, tip);
       button.append(icon);
       button.addEventListener('click', () => openGuest(index));
       grid.insertBefore(button, add);

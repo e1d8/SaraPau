@@ -276,8 +276,13 @@ test('Els invitats es guarden, s’editen en una graella de cinc columnes i s’
   await page.evaluate(() => document.querySelector('#send-replies').click());
   await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'success');
   assert.equal(await page.locator('#rsvp-loading').evaluate(el => el.open), false);
-  assert.equal(await page.locator('#rsvp-success h3').textContent(), 'Gràcies');
-  assert.equal(await page.locator('.reply-heart').evaluate(el => el.getBoundingClientRect().width <= 80 && parseFloat(getComputedStyle(el).marginBottom) <= 12), true);
+  assert.equal((await page.locator('#rsvp-success h3').textContent()).trim(), 'Gràcies');
+  assert.equal(await page.locator('#rsvp-success .icon-heart').isVisible(), true);
+  assert.equal(await page.locator('#rsvp-title .icon-check').isVisible(), true);
+  assert.equal(await page.locator('#rsvp-title .icon-cross').isVisible(), false);
+  assert.equal(await page.locator('#rsvp-title').getAttribute('aria-label'), 'Confirmació: respostes rebudes');
+  assert.equal(await page.locator('#rsvp-title').evaluate(el => el.clientHeight <= parseFloat(getComputedStyle(el).lineHeight) + 1), true);
+  assert.equal(await page.locator('.reply-heart').count(), 0);
   assert.equal(await page.locator('#guest-manager').isVisible(), false);
   assert.equal(await page.locator('#rsvp-error').isVisible(), false);
   await page.evaluate(() => {
@@ -320,6 +325,9 @@ test('Sense recepció en deu segons, es cancel·la l’enviament i no es pot tor
   assert.equal(await page.locator('#rsvp-loading').evaluate(el => el.open), true);
   await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'error', undefined, { timeout: 12000 });
   assert.equal(await page.locator('#rsvp-error').textContent(), 'Alguna cosa ha anat mal, tona-ho a intentar més tard');
+  assert.equal(await page.locator('#rsvp-title .icon-cross').isVisible(), true);
+  assert.equal(await page.locator('#rsvp-title .icon-check').isVisible(), false);
+  assert.equal(await page.locator('#rsvp-title').getAttribute('aria-label'), 'Confirmació: error en l’enviament');
   assert.equal(await page.locator('#guest-manager').isVisible(), false);
   assert.equal(await page.locator('#rsvp-loading').evaluate(el => el.open), false);
   assert.equal(await page.evaluate(() => window.sendCancelled), true);
@@ -405,6 +413,7 @@ test('La còpia de l’IBAN alterna la icona i el tick amb clic, hover i pressi�
   await page.waitForFunction(() => document.querySelector('#copy-iban').dataset.copied === 'true');
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'ES11 0049 0070 1525 9029 9271');
   assert.equal(await copy.locator('.copy-check').isVisible(), true);
+  assert.equal(await copy.locator('svg.copy-check path').count(), 1);
   assert.equal(await copy.locator('.copy-icon').isVisible(), false);
   assert.equal(await page.locator('#copy-status').getAttribute('class'), 'copy-status sr-only');
   assert.doesNotMatch(await page.locator('body').innerText(), /IBAN copiat!/);

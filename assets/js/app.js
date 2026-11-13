@@ -4,6 +4,14 @@ import { setupPageScrollbar } from './scrollbar.js';
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const art = (name, extra = '') => `<span class="art art-${name} ${extra}" aria-hidden="true"></span>`;
+// Traços dibuixats a mà: els mateixos gràfics per als resultats i el porta-retalls.
+const iconPaths = {
+  check: '<path class="ink-fill" d="M3.1 11.4c.8-.9 1.6-.4 2.3.3l3.8 4.2c2.8-3.7 6.4-8 10.2-11.5.8-.7 1.6-.7 2.1-.1.6.8.1 1.6-.5 2.3-3.7 4.3-7 8.9-10.7 13.1-.7.8-1.7.8-2.4-.1-1.7-2-3.5-4-4.9-6.1-.5-.8-.5-1.5.1-2.1Z"/>',
+  cross: '<path class="ink-fill" d="M4.6 3.7c.7-.5 1.4-.1 2 .5 4.6 4.7 8.4 9.7 12.8 14.5.8.9.8 1.7.2 2.1-.8.6-1.6.1-2.2-.6C13.2 15.7 9 10.6 4.6 6c-.8-.9-.7-1.8 0-2.3Z"/><path class="ink-fill" d="M18.6 3.2c.8-.6 1.6-.6 2.1.1.5.8-.1 1.6-.8 2.3C15.6 10 11.1 15.5 6.3 20c-.8.8-1.7 1.1-2.3.4-.5-.7-.2-1.4.5-2.2C9 13.3 13.7 7.7 18.6 3.2Z"/>',
+  heart: '<path d="M11.7 20.8C9.1 18.4 3.6 15 2.6 10.3c-.9-4.4 1.8-7.1 4.8-6.6 2.1.2 3.7 1.8 4.6 3.6 1.2-2.4 3.2-4.4 5.8-3.7 3.6.9 4.7 4.1 3.5 7.2-1.4 3.8-6.5 7.6-9.6 10Z"/>',
+  copy: '<path d="M9.2 7.7c3-.3 6-.1 9.1-.2 1.1 0 1.8.6 1.7 1.8l.2 9.4c0 1.2-.5 1.8-1.7 1.9l-9.2.2c-1.2 0-1.8-.6-1.8-1.8l-.2-9.2c0-1.3.6-2 1.9-2.1Z"/><path d="m7.5 16.7-2.3.1c-1.2 0-1.8-.6-1.8-1.8l.2-10c0-1.1.5-1.8 1.7-1.9l8.8.2c1.2 0 1.8.6 1.8 1.7l-.1 2.4"/>',
+};
+const icon = (name, extra = '') => `<svg class="handdrawn-icon icon-${name} ${extra}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${iconPaths[name]}</svg>`;
 const external = (url, label, extra = '') => `<a class="${extra}" href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(label)}<span class="sr-only"> (s’obri en una altra pestanya)</span></a>`;
 const placeLink = key => {
   const place = w.places[key];
@@ -13,13 +21,13 @@ const placeLink = key => {
 function rsvp() {
   return `<section class="rsvp section" id="rsvp" aria-labelledby="rsvp-title">
     <div class="rsvp-panel">
-      <h2 class="form-heading" id="rsvp-title">Confirmació</h2>
+      <h2 class="form-heading" id="rsvp-title">Confirmació<span class="rsvp-result" aria-hidden="true" hidden>${icon('check')}${icon('cross')}</span></h2>
       <div id="guest-manager">
         <p class="rsvp-description">Afegix la resposta de tots els invitats del teu cercle</p>
         <div class="guest-grid" id="guest-grid" role="group" aria-label="Respostes dels invitats"><button class="guest-tile guest-add" id="add-guest" type="button" aria-label="Afegir invitat"><span aria-hidden="true">+</span></button></div>
         <button class="button send-replies" id="send-replies" type="button" hidden>Enviar respostes</button>
       </div>
-      <div class="rsvp-success" id="rsvp-success" hidden><svg class="reply-heart" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 51C25 44 9 34 9 22 9 9 26 7 32 19 38 7 55 9 55 22 55 34 39 44 32 51Z"/></svg><h3 tabindex="-1">Gràcies</h3></div>
+      <div class="rsvp-success" id="rsvp-success" hidden><h3 tabindex="-1">Gràcies ${icon('heart')}</h3></div>
       <p class="rsvp-error" id="rsvp-error" role="alert" tabindex="-1" hidden>Alguna cosa ha anat mal, tona-ho a intentar més tard</p>
     </div>
     <dialog class="guest-dialog" id="guest-dialog" aria-labelledby="guest-dialog-title">
@@ -45,7 +53,7 @@ function landing() {
     <section class="home-hero" aria-labelledby="hero-title"><div class="hero-copy"><p class="hero-opening">${escape(w.home.opening)}</p><h1 class="signature" id="hero-title">${escape(w.couple)}</h1><p class="hero-date"><time datetime="${escape(w.date)}">${escape(w.dateShort)}</time></p><p class="hero-location">${escape(w.location)}</p></div>${art('wedding-table')}</section>
     <section class="timeline section" id="detalls" aria-labelledby="timeline-title"><h2 id="timeline-title">EL PROGRAMA DE LA BODA</h2><ol>${w.timeline.map(item => `<li class="timeline-item image-${escape(item.imageSide)}">${art(item.illustration, `timeline-art${item.imageFlipped ? ' is-flipped' : ''}`)}<div class="timeline-copy"><p class="timeline-time">${escape(item.time)}</p><h3>${escape(item.title)}</h3><p>${item.parts.map(part => typeof part === 'string' ? escape(part) : placeLink(part.place)).join('')}</p></div></li>`).join('')}</ol></section>
     ${rsvp()}
-    <section class="celebration section" aria-label="La nostra gent"><div class="banquet-divider" aria-hidden="true">${art('banquet')}</div><p class="closing-message">${escape(w.home.farewell)}</p><div class="bank-account"><p><span class="sr-only">Compte bancari: </span><span id="iban">${escape(w.bankAccount)}</span></p><button class="copy-iban" id="copy-iban" type="button" aria-label="Copia l’IBAN" title="Copia l’IBAN"><svg class="copy-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg><svg class="copy-check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L20 5"/></svg></button></div><p class="copy-status sr-only" id="copy-status" role="status" aria-live="polite"></p></section>
+    <section class="celebration section" aria-label="La nostra gent"><div class="banquet-divider" aria-hidden="true">${art('banquet')}</div><p class="closing-message">${escape(w.home.farewell)}</p><div class="bank-account"><p><span class="sr-only">Compte bancari: </span><span id="iban">${escape(w.bankAccount)}</span></p><button class="copy-iban" id="copy-iban" type="button" aria-label="Copia l’IBAN" title="Copia l’IBAN">${icon('copy', 'copy-icon')}${icon('check', 'copy-check')}</button></div><p class="copy-status sr-only" id="copy-status" role="status" aria-live="polite"></p></section>
   </main><footer class="site-footer"><h2>Algun dubte?</h2><p class="footer-names">${w.contacts.map(contact => external(`https://wa.me/${contact.phone}`, contact.name)).join(' <span class="name-separator">·</span> ')}</p></footer>`;
 }
 

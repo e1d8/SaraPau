@@ -24,7 +24,7 @@ Les fotografies estan en `assets/photos/` i les il·lustracions en `assets/illus
 
 Les localitzacions estan en `places` i el programa en `timeline`. Cada fragment del programa pot ser un text o una referència `{ place: 'lluisos' }`, que es mostra com un enllaç a Google Maps amb l’adreça corresponent. No hi ha mapa incrustat ni secció «Com arribar-hi».
 
-L’IBAN té un botó de còpia que es transforma en un tick. En tornar a passar-hi el cursor, reapareix la icona de copiar; en prémer o clicar, es mostra el tick. Utilitza el porta-retalls del navegador, amb una alternativa per selecció si no està disponible. Si el navegador impedix les dos opcions, mostra un missatge per a copiar-lo manualment.
+L’IBAN té un botó de còpia que es transforma en un tick. El tick, la creu, el cor i la icona de copiar són gràfics SVG amb traç manuscrit i el color del text. En tornar a passar-hi el cursor, reapareix la icona de copiar; en prémer o clicar, es mostra el tick. Utilitza el porta-retalls del navegador, amb una alternativa per selecció si no està disponible. Si el navegador impedix les dos opcions, mostra un missatge per a copiar-lo manualment.
 
 La paleta i l’adaptació a mòbil estan en `assets/css/site.css`. Les il·lustracions utilitzen màscares CSS per a recolorir el traç sense pintar-ne els espais transparents. El blanc continua blanc.
 
@@ -36,7 +36,7 @@ El formulari exigix nom i cognoms i una resposta a «Mos acompanyaràs?». Si la
 
 Els camps de text creixen automàticament d’una a quatre línies, també en editar una resposta o canviar l’amplària de la finestra. Si el text ocupa més espai, es pot desplaçar dins del camp. Les barres de desplaçament de la pàgina, les finestres i els camps compartixen colors i acabats. La barra principal se superposa al contingut sense fons ni espai reservat al lateral, de manera que la il·lustració també es veu per davall. Es pot arrossegar, i el desplaçament de roda, teclat i tàctil continua sent natiu. En obrir una finestra modal s’oculta la barra principal i s’utilitza la barra més fina del pop-up.
 
-«Enviar respostes» apareix després de guardar el primer invitat. En prémer-lo, una pantalla modal de càrrega bloqueja el web. Ara `simulateSendReplies` confirma la recepció després d’un segon, sense cap petició. L’èxit mostra el cor i «Gràcies»; si no hi ha recepció en deu segons, s’avorta l’enviament i l’error substituïx la graella i el botó. En els dos casos, no es pot tornar a enviar fins a recarregar, tampoc tornant a la pàgina des de l’historial.
+«Enviar respostes» apareix després de guardar el primer invitat. En prémer-lo, una pantalla modal de càrrega bloqueja el web. Ara `simulateSendReplies` confirma la recepció després d’un segon, sense cap petició. L’èxit mostra «Confirmació ✔» i «Gràcies ♡»; si no hi ha recepció en deu segons, s’avorta l’enviament, el títol passa a «Confirmació ✘» i l’error substituïx la graella i el botó. En els dos casos, no es pot tornar a enviar fins a recarregar, tampoc tornant a la pàgina des de l’historial.
 
 **No transmet ni guarda les respostes de manera persistent.** La llista d’invitats només viu en memòria mentre la pàgina està oberta; en recarregar es reinicia. No utilitza cookies, `localStorage`, `sessionStorage`, analítica, API ni cap servei de formularis. La política de contingut de la landing bloqueja connexions de dades (`connect-src 'none'`) i enviaments de formularis (`form-action 'none'`). Les fonts i els recursos visuals són locals.
 

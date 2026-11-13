@@ -120,9 +120,10 @@ strong{font-weight:400}
 .guest-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
 .guest-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;aspect-ratio:1;min-height:48px;min-width:0;padding:8px;border:1.5px solid var(--primary);border-radius:10px;background:var(--white);color:var(--primary)}
 .guest-tile:hover{background:var(--light)}
-.guest-add{font-size:34px;line-height:1;border-style:dashed}
+.guest-add{font-size:34px;line-height:1}
 .guest-initials{font-size:22px;line-height:1.1}
-.guest-edit svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.guest-edit svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.guest-edit .pencil-tip{fill:currentColor;stroke:none}
 .send-replies{width:100%;margin-top:28px}
 .guest-dialog{width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow-y:auto;scrollbar-gutter:stable;margin:auto;padding:24px;border:1.5px solid var(--primary);border-radius:14px;background:var(--white);color:var(--dark)}
 .guest-dialog::backdrop{background:rgb(61 65 39 / 45%)}
@@ -143,6 +144,12 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 .loading-spinner{width:52px;height:52px;border:3px solid var(--secondary);border-top-color:var(--primary);border-radius:50%;animation:loading-turn 1s linear infinite}
 @keyframes loading-turn{to{transform:rotate(360deg)}}
 .form-heading{font-size:40px;color:var(--primary);text-align:center;margin-bottom:24px}
+.handdrawn-icon{display:inline-block;width:1em;height:1em;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.12em}
+.handdrawn-icon .ink-fill{fill:currentColor;stroke:none}
+.form-heading{display:flex;align-items:center;justify-content:center;gap:.2em}
+.rsvp-result{display:inline-flex;font-size:.8em}
+.rsvp-result .handdrawn-icon{display:none}
+.rsvp[data-state="success"] .rsvp-result .icon-check,.rsvp[data-state="error"] .rsvp-result .icon-cross{display:block}
 .form-notice{font-size:13px;line-height:1.6;margin-bottom:30px;text-align:center}
 .form-field{margin-bottom:22px}
 .form-field>label,.attendance legend,.bus-choice legend{font-size:16px;font-weight:400;display:block;margin-bottom:9px}
@@ -163,8 +170,8 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 .form-status{margin-bottom:12px}
 #rsvp-form>.button{width:100%;margin-top:10px}
 .rsvp-success{text-align:center;padding:30px 0}
-.reply-heart{display:block;width:64px;margin:0 auto 8px;fill:none;stroke:var(--primary);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.rsvp-success h3{font-size:32px;margin-bottom:0}
+.rsvp-success h3{display:inline-flex;align-items:center;gap:.22em;font-size:32px;margin-bottom:0}
+.rsvp-success .icon-heart{width:.85em;height:.85em}
 .rsvp-success p{line-height:1.8;margin-bottom:25px}
 .rsvp-success .button{margin-top:12px}
 .reply-summary{text-align:left;line-height:1.8;padding-left:24px;margin:0 0 25px;overflow-wrap:anywhere;white-space:pre-wrap}
@@ -191,7 +198,7 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 .bank-account{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:38px;font-size:18px;letter-spacing:.08em;white-space:nowrap}
 .copy-iban{display:inline-flex;justify-content:center;align-items:center;flex-shrink:0;min-width:40px;min-height:44px;padding:9px;border:1px solid transparent;border-radius:7px;background:var(--white);color:var(--primary)}
 .copy-iban:hover{background:var(--light)}
-.copy-iban svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.copy-iban .handdrawn-icon{width:20px;height:20px}
 .copy-iban .copy-check{display:none}
 .copy-iban:is([data-copied="true"]:not(:hover),[data-clicked="true"],:active) .copy-icon{display:none}
 .copy-iban:is([data-copied="true"]:not(:hover),[data-clicked="true"],:active) .copy-check{display:block}
@@ -219,7 +226,8 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
   .timeline{padding-block:35px 48px}.timeline h2{font-size:30px;max-width:400px;margin:auto}.timeline ol{grid-template-columns:1fr;gap:36px;max-width:450px;margin-top:38px}.timeline-item{gap:12px}.timeline-art{max-width:96px;max-height:112px}.timeline h3{font-size:17px}.timeline-copy>p:last-child{font-size:14px;max-width:410px;margin:auto}.timeline-time{font-size:30px}
   .directions{padding-block:30px 48px}.directions h2{font-size:32px}.travel-options{grid-template-columns:1fr;gap:30px;max-width:430px;margin-top:28px}.travel-options h3{font-size:23px;margin-bottom:12px}.travel-options p{font-size:14px}
   .rsvp{padding-block:30px 48px}.rsvp-panel{max-width:500px}.form-heading{font-size:34px}.form-notice{font-size:12px;margin-bottom:26px}.form-field>label,.attendance legend,.bus-choice legend{font-size:15px}
-  .guest-grid{gap:8px}.guest-tile{padding:5px;gap:4px}.guest-initials{font-size:17px}.guest-edit svg{width:13px;height:13px}.guest-add{font-size:29px}.guest-dialog{padding:20px}.guest-dialog-header h3{font-size:22px}
+  .rsvp:is([data-state="success"],[data-state="error"]) .form-heading{font-size:clamp(29px,9vw,34px)}
+  .guest-grid{gap:8px}.guest-tile{padding:5px;gap:4px}.guest-initials{font-size:17px}.guest-edit svg{width:14px;height:14px}.guest-add{font-size:29px}.guest-dialog{padding:20px}.guest-dialog-header h3{font-size:22px}
   .celebration{padding-top:10px;padding-bottom:40px}.closing-message{font-size:20px;margin-top:32px;max-width:420px}.bank-account{font-size:clamp(12px,3.5vw,17px);letter-spacing:.04em;margin-top:28px}
   .site-footer{gap:12px;padding-block:15px 28px}.site-footer h2,.footer-names,.name-separator{font-size:12px}.footer-names{gap:7px}
 }
