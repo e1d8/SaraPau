@@ -34,6 +34,8 @@ La confirmació permet afegir diversos invitats en una graella de cinc columnes.
 
 El formulari exigix nom i cognoms i una resposta a «Mos acompanyaràs?». Si la resposta és afirmativa, cal triar una de les quatre opcions de bus de `busOptions`; el camp d’al·lèrgies, intoleràncies o dieta és opcional. En canviar a «No», estos camps es netegen i es desactiven. El recordatori dels camps obligatoris només es mostra després d’intentar guardar amb camps pendents.
 
+Els camps de text creixen automàticament d’una a quatre línies, també en editar una resposta o canviar l’amplària de la finestra. Si el text ocupa més espai, es pot desplaçar dins del camp. Les barres de desplaçament de la pàgina, les finestres i els camps compartixen colors i acabats.
+
 «Enviar respostes» apareix després de guardar el primer invitat. En prémer-lo, una pantalla modal de càrrega bloqueja el web. Ara `simulateSendReplies` confirma la recepció després d’un segon, sense cap petició. L’èxit mostra el cor i «Gràcies»; si no hi ha recepció en deu segons, s’avorta l’enviament i l’error substituïx la graella i el botó. En els dos casos, no es pot tornar a enviar fins a recarregar, tampoc tornant a la pàgina des de l’historial.
 
 **No transmet ni guarda les respostes de manera persistent.** La llista d’invitats només viu en memòria mentre la pàgina està oberta; en recarregar es reinicia. No utilitza cookies, `localStorage`, `sessionStorage`, analítica, API ni cap servei de formularis. La política de contingut de la landing bloqueja connexions de dades (`connect-src 'none'`) i enviaments de formularis (`form-action 'none'`). Les fonts i els recursos visuals són locals.
@@ -75,3 +77,17 @@ SITE_ROOT=dist SCREENSHOTS_DIR=test-results npm run test:browser
 El workflow comprova el codi, prepara `dist/` i el publica. L’adreça prevista per al repositori actual és `https://e1d8.github.io/SaraPau/`. Totes les rutes internes són relatives; també funcionen si canvies el nom del repositori o uses un domini propi.
 
 La configuració està preparada al repositori; esta entrega no activa Pages ni fa cap push automàticament.
+
+## Previsualització en compartir
+
+Les tres adreces HTML inclouen metadades [Open Graph](https://ogp.me/) i Twitter Card directament en la capçalera, sense dependre de JavaScript: títol «Sara ∞ Pau», descripció «9 d'octubre de 2027» i imatge `assets/social/cupid.png`. La descripció de compartició és independent de la data visible configurada en `content.js`.
+
+La imatge és una exportació de `assets/illustrations/cupid.svg`, en verd oliva sobre fons blanc, en PNG de 1200 × 630 píxels. Per a regenerar-la després de canviar el vector o el color principal, amb les dependències de desenvolupament i Chrome/Chromium instal·lats:
+
+```sh
+npm run render:share
+```
+
+Les adreces de la imatge i de la pàgina són HTTPS absolutes. El workflow utilitza l’adreça que proporciona GitHub Pages; en construir fora de GitHub, es pot indicar una altra amb `SITE_URL=https://el-teu-domini.example/ npm run build`. Per defecte s’utilitza `https://e1d8.github.io/SaraPau/`.
+
+Cal publicar els fitxers nous, inclòs el PNG, perquè les aplicacions puguen llegir-los. Les proves locals comproven l’HTML inicial i la imatge amb agents de WhatsApp i Telegram; no substituïxen una comprovació dins de les aplicacions contra la versió publicada. Les previsualitzacions que estes aplicacions ja hagen guardat poden tardar a actualitzar-se.

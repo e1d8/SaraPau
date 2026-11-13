@@ -22,9 +22,12 @@ jobs:
           node-version: '24'
       - name: Comprova el web
         run: npm test
-      - name: Prepara els fitxers estàtics
-        run: npm run build
       - uses: actions/configure-pages@v5
+        id: pages
+      - name: Prepara els fitxers estàtics
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: npm run build
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist

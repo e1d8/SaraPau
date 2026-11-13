@@ -58,8 +58,34 @@ test('La landing utilitza valencià i recursos locals; les rutes antigues rediri
     assert.doesNotMatch(html, /<iframe|<script[^>]+https?:|Designed by Canva|Terms & Support|Privacy policy/i);
     for (const [, url] of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
       assert.ok(!url.startsWith('/'), `${filename}: ruta absoluta ${url}`);
+      if (url.startsWith('https://')) {
+        assert.equal(url, 'https://e1d8.github.io/SaraPau/');
+        continue;
+      }
       await access(resolve(root, url.split('#')[0]));
     }
+  }
+});
+
+test('Les metadades de compartició són estàtiques i descriuen una imatge PNG real', async () => {
+  const png = await readFile(resolve(root, 'assets/social/cupid.png'));
+  assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  for (const name of ['index.html', 'detalls.html', 'historia.html']) {
+    const html = await readFile(resolve(root, name), 'utf8');
+    const head = html.split('</head>')[0];
+    const meta = (key, attribute = 'property') => head.match(new RegExp(`<meta ${attribute}="${key}" content="([^"]+)">`))?.[1];
+    assert.match(head, /<title>Sara ∞ Pau<\/title>/);
+    assert.equal(meta('og:title'), 'Sara ∞ Pau');
+    assert.equal(meta('og:description'), "9 d'octubre de 2027");
+    assert.equal(meta('description', 'name'), "9 d'octubre de 2027");
+    assert.equal(meta('og:image'), 'https://e1d8.github.io/SaraPau/assets/social/cupid.png');
+    assert.equal(meta('og:image:type'), 'image/png');
+    assert.equal(Number(meta('og:image:width')), png.readUInt32BE(16));
+    assert.equal(Number(meta('og:image:height')), png.readUInt32BE(20));
+    assert.equal(meta('twitter:card', 'name'), 'summary_large_image');
+    assert.equal(meta('twitter:image', 'name'), meta('og:image'));
+    assert.equal(meta('twitter:title', 'name'), meta('og:title'));
+    assert.equal(meta('twitter:description', 'name'), meta('og:description'));
   }
 });
 

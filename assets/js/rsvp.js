@@ -69,6 +69,7 @@ export function setupRsvp(root = document, { sendReplies = simulateSendReplies, 
   const busControls = [...form.querySelectorAll('[name="bus"]')];
   const dietary = form.elements.dietary;
   const status = form.querySelector('#form-status');
+  const textFields = [...form.querySelectorAll('textarea.auto-grow')];
   let replies = [];
   let state = 'collecting';
   let editingIndex = null;
@@ -76,6 +77,22 @@ export function setupRsvp(root = document, { sendReplies = simulateSendReplies, 
   let attempted = false;
   let pending = null;
   let generation = 0;
+
+  const resizeTextFields = () => {
+    if (!dialog.open || form.hidden) return;
+    const scrollTop = dialog.scrollTop;
+    textFields.forEach(field => {
+      if (!field.getClientRects().length) return;
+      field.classList.remove('is-scrollable');
+      field.rows = 1;
+      const style = getComputedStyle(field);
+      const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const lines = Math.max(1, Math.ceil((field.scrollHeight - padding - 1) / parseFloat(style.lineHeight)));
+      field.rows = Math.min(4, lines);
+      field.classList.toggle('is-scrollable', lines > 4);
+    });
+    dialog.scrollTop = scrollTop;
+  };
 
   const setState = value => {
     state = value;
@@ -107,6 +124,7 @@ export function setupRsvp(root = document, { sendReplies = simulateSendReplies, 
     });
     dietary.disabled = !attending;
     if (!attending) dietary.value = '';
+    resizeTextFields();
   };
 
   const renderGuests = () => {
@@ -156,6 +174,7 @@ export function setupRsvp(root = document, { sendReplies = simulateSendReplies, 
       dietary.value = reply.dietary;
     } else updateAttendance();
     dialog.showModal();
+    resizeTextFields();
     form.elements.name.focus();
   };
 
@@ -192,8 +211,11 @@ export function setupRsvp(root = document, { sendReplies = simulateSendReplies, 
     if (attempted) showErrors(validateReply(readReply()));
   });
   form.addEventListener('input', () => {
+    resizeTextFields();
     if (attempted) showErrors(validateReply(readReply()));
   });
+  window.addEventListener('resize', resizeTextFields);
+  document.fonts.ready.then(resizeTextFields);
   form.addEventListener('submit', event => {
     event.preventDefault();
     if (state !== 'collecting' || !dialog.open || form.hidden) return;

@@ -8,6 +8,7 @@
     "dev": "node scripts/serve.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/serve.mjs dist",
+    "render:share": "node scripts/render-share-image.mjs",
     "test": "node --test tests/site.test.mjs",
     "test:browser": "node --test tests/browser.test.mjs"
   },

@@ -73,7 +73,7 @@ test('La landing mostra les seccions sol·licitades dins de /SaraPau/ en escript
       assert.equal(await page.locator('#rsvp-title').textContent(), 'Confirmació');
       assert.equal(await page.locator('#form-status').isVisible(), false);
       assert.equal(await page.locator('#rsvp-notice').count(), 0);
-      assert.equal(await page.locator('.art-hero-table').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(99, 107, 47)');
+      assert.equal(await page.locator('.art-wedding-table').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(99, 107, 47)');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${filename}, ${width}px: desbordament`);
       assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(255, 255, 255)');
       assert.equal(await page.locator('main').evaluate(el => [...el.querySelectorAll('section')].every(section => ['rgba(0, 0, 0, 0)', 'rgb(255, 255, 255)'].includes(getComputedStyle(section).backgroundColor))), true);
@@ -97,6 +97,28 @@ test('La landing mostra les seccions sol·licitades dins de /SaraPau/ en escript
     assert.deepEqual(failed, []);
     assert.deepEqual(external, []);
     await page.close();
+  }
+});
+
+test('Les metadades i la imatge es poden llegir sense JavaScript amb agents de WhatsApp i Telegram', async () => {
+  for (const userAgent of ['WhatsApp/2.0', 'TelegramBot (like TwitterBot)']) {
+    const context = await browser.newContext({ userAgent, javaScriptEnabled: false });
+    for (const path of ['index.html', 'detalls.html', 'historia.html']) {
+      const response = await context.request.get(`${origin}${prefix}/${path}`);
+      assert.equal(response.status(), 200);
+      const html = await response.text();
+      assert.match(html, /<meta property="og:title" content="Sara ∞ Pau">/);
+      assert.match(html, /<meta property="og:description" content="9 d'octubre de 2027">/);
+      const imageUrl = new URL(html.match(/<meta property="og:image" content="([^"]+)">/)[1]);
+      assert.equal(imageUrl.protocol, 'https:');
+      const image = await context.request.get(`${origin}${imageUrl.pathname}`);
+      assert.equal(image.status(), 200);
+      assert.equal(image.headers()['content-type'], 'image/png');
+      const png = await image.body();
+      assert.equal(png.readUInt32BE(16), 1200);
+      assert.equal(png.readUInt32BE(20), 630);
+    }
+    await context.close();
   }
 });
 
@@ -219,6 +241,7 @@ test('Els invitats es guarden, s’editen en una graella de cinc columnes i s’
   await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'success');
   assert.equal(await page.locator('#rsvp-loading').evaluate(el => el.open), false);
   assert.equal(await page.locator('#rsvp-success h3').textContent(), 'Gràcies');
+  assert.equal(await page.locator('.reply-heart').evaluate(el => el.getBoundingClientRect().width <= 80 && parseFloat(getComputedStyle(el).marginBottom) <= 12), true);
   assert.equal(await page.locator('#guest-manager').isVisible(), false);
   assert.equal(await page.locator('#rsvp-error').isVisible(), false);
   await page.evaluate(() => {
@@ -278,6 +301,58 @@ test('Sense recepció en deu segons, es cancel·la l’enviament i no es pot tor
   await page.reload({ waitUntil: 'networkidle' });
   assert.equal(await page.locator('#rsvp-error').isVisible(), false);
   assert.equal(await page.locator('.guest-edit').count(), 0);
+  await page.close();
+});
+
+test('Els camps creixen fins a quatre línies, es contrauen i mantenen les barres uniformes', async () => {
+  const page = await browser.newPage({ viewport: { width: 320, height: 844 }, reducedMotion: 'reduce' });
+  await load(page);
+  await page.getByRole('button', { name: 'Afegir invitat', exact: true }).click();
+  const name = page.locator('#guest-name');
+  const diet = page.locator('#dietary');
+  await name.fill('Aina Ferrer');
+  assert.equal(await name.evaluate(el => el.rows), 1);
+  const initialHeight = await name.evaluate(el => el.getBoundingClientRect().height);
+  await name.fill('Aina\nFerrer\nSoler');
+  assert.equal(await name.evaluate(el => el.rows), 3);
+  assert.ok(await name.evaluate(el => el.getBoundingClientRect().height) > initialHeight);
+  await name.fill('Aina Ferrer Soler Roig '.repeat(5).trim());
+  assert.equal(await name.evaluate(el => el.rows), 4);
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.waitForFunction(() => document.querySelector('#guest-name').rows < 4);
+  await page.setViewportSize({ width: 320, height: 844 });
+  await name.fill('Aina Ferrer');
+  assert.equal(await name.evaluate(el => el.rows), 1);
+  await page.getByLabel('Sí, allí estaré!').check();
+  await page.locator('[name="bus"][value="none"]').check();
+  await diet.fill('Sense gluten\nSense lactosa\nVegetariana\nSense fruits secs');
+  assert.equal(await diet.evaluate(el => el.rows), 4);
+  const cappedHeight = await diet.evaluate(el => el.getBoundingClientRect().height);
+  const longDiet = Array.from({ length: 12 }, (_, index) => `Comentari ${index + 1}`).join('\n');
+  await diet.fill(longDiet);
+  assert.equal(await diet.evaluate(el => el.rows), 4);
+  assert.equal(await diet.evaluate(el => el.getBoundingClientRect().height), cappedHeight);
+  assert.equal(await diet.evaluate(el => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY === 'auto'), true);
+  await page.mouse.move(0, 0);
+  const bars = await page.evaluate(() => [document.documentElement, document.querySelector('#guest-dialog'), document.querySelector('#dietary')].map(el => ({
+    width: getComputedStyle(el, '::-webkit-scrollbar').width,
+    track: getComputedStyle(el, '::-webkit-scrollbar-track').backgroundColor,
+    thumb: getComputedStyle(el, '::-webkit-scrollbar-thumb').backgroundColor,
+    radius: getComputedStyle(el, '::-webkit-scrollbar-thumb').borderRadius,
+  })));
+  assert.deepEqual(bars[0], bars[1]);
+  assert.deepEqual(bars[0], bars[2]);
+  assert.ok(parseFloat(bars[0].width) <= 10);
+  if (process.env.SCREENSHOTS_DIR) await page.locator('#guest-dialog').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'camps-320.png') });
+  await page.getByRole('button', { name: 'Guardar resposta', exact: true }).click();
+  assert.ok((await page.locator('#reply-summary').textContent()).includes(longDiet));
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await page.locator('.guest-edit').first().click();
+  assert.equal(await diet.inputValue(), longDiet);
+  assert.equal(await diet.evaluate(el => el.rows), 4);
+  await diet.fill('');
+  assert.equal(await diet.evaluate(el => el.rows), 1);
+  assert.equal(await diet.evaluate(el => el.scrollHeight <= el.clientHeight), true);
   await page.close();
 });
 
