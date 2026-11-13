@@ -101,7 +101,7 @@ export function setupMotion() {
           promises.push(track(letter.animate([{ opacity: 0 }, { opacity: 1 }], {
             duration: 1, delay, easing: 'steps(1, end)', fill: 'backwards',
           })));
-          delay += /[.!?]/.test(character) ? 150 : /[,;:]/.test(character) ? 65 : 22;
+          delay += /[.!?]/.test(character) ? 120 : /[,;:]/.test(character) ? 50 : 18;
         }
         offset += character.length;
       });
