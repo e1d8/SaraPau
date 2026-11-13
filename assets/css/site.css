@@ -74,16 +74,16 @@ strong{font-weight:400}
 .art-calendar{--illustration:url("../illustrations/calendar.svg");aspect-ratio:295/241}
 .art-banquet{--illustration:url("../illustrations/banquet.svg");aspect-ratio:4810/1483}
 .art-rings{--illustration:url("../illustrations/rings.svg");aspect-ratio:278/183}
+.art-esglesia-major{--illustration:url("../illustrations/esglesia-major.svg");aspect-ratio:540/582}
 .art-heart{--illustration:url("../illustrations/heart.svg");aspect-ratio:1}
 .art-cupid{--illustration:url("../illustrations/cupid.svg");aspect-ratio:1}
 .art-champagne{--illustration:url("../illustrations/champagne.svg");aspect-ratio:1261/2000}
 
 .home-hero{overflow:hidden;text-align:center;padding-top:96px}
 .hero-copy{padding-inline:24px}
-.hero-opening{max-width:830px;margin:auto;font-size:18px;font-weight:300;line-height:1.7;text-transform:uppercase;text-wrap:pretty}
+.hero-opening{max-width:830px;margin:auto;font-size:18px;font-weight:300;line-height:1.7;text-wrap:pretty}
 .home-hero h1{font-size:114.7px;margin:30px 0 0;line-height:1.2}
 .hero-date{font-size:42.7px;font-weight:400;color:var(--primary);line-height:1.2;margin-top:16px}
-.hero-location{margin-top:14px;line-height:1.2;text-transform:uppercase}
 .home-hero .art{width:83.2%;margin:32px auto 0}
 
 .ceremony{display:grid;grid-template-columns:1fr 1.06fr 1fr;gap:26px;align-items:start;padding-top:90px;padding-bottom:42px;text-align:center}
@@ -122,7 +122,7 @@ strong{font-weight:400}
 .guest-tile:hover{background:var(--light)}
 .guest-add{font-size:34px;line-height:1}
 .guest-initials{font-size:22px;line-height:1.1}
-.guest-edit svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.guest-edit svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
 .guest-edit .pencil-tip{fill:currentColor;stroke:none}
 .send-replies{width:100%;margin-top:28px}
 .guest-dialog{width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow-y:auto;scrollbar-gutter:stable;margin:auto;padding:24px;border:1.5px solid var(--primary);border-radius:14px;background:var(--white);color:var(--dark)}
@@ -132,8 +132,7 @@ strong{font-weight:400}
 .guest-dialog::-webkit-scrollbar-thumb{border-width:1px;min-height:24px}
 .guest-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px}
 .guest-dialog-header h3{font-size:25px;color:var(--primary)}
-.close-dialog{display:grid;place-items:center;flex-shrink:0;width:44px;height:44px;border:0;border-radius:7px;background:var(--white);color:var(--primary);font-size:22px;font-weight:300;line-height:1;text-transform:none}
-.close-dialog:hover{background:var(--light)}
+.close-dialog{display:grid;place-items:center;flex-shrink:0;width:44px;height:44px;border:0;border-radius:7px;background:transparent;color:var(--primary);font-size:22px;font-weight:300;line-height:1;text-transform:none}
 .guest-saved h4{font-size:23px;font-weight:400;color:var(--primary);margin:0 0 24px}
 .guest-saved>.button{width:100%}
 .rsvp-error{padding:25px 0;text-align:center;line-height:1.8}
@@ -144,8 +143,9 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 .loading-spinner{width:52px;height:52px;border:3px solid var(--secondary);border-top-color:var(--primary);border-radius:50%;animation:loading-turn 1s linear infinite}
 @keyframes loading-turn{to{transform:rotate(360deg)}}
 .form-heading{font-size:40px;color:var(--primary);text-align:center;margin-bottom:24px}
-.handdrawn-icon{display:inline-block;width:1em;height:1em;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.12em}
+.handdrawn-icon{display:inline-block;width:1em;height:1em;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.12em}
 .handdrawn-icon .ink-fill{fill:currentColor;stroke:none}
+.icon-check .ink-fill{stroke:currentColor;stroke-width:1.2}
 .form-heading{display:flex;align-items:center;justify-content:center;gap:.2em}
 .rsvp-result{display:inline-flex;font-size:.8em}
 .rsvp-result .handdrawn-icon{display:none}
@@ -160,10 +160,10 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 .field-help{font-size:12px;line-height:1.6;margin:3px 0 9px}
 .attendance,.bus-choice{border:0;margin:0 0 24px;padding:0}
 .attendance legend,.bus-choice legend{padding:0}
-.radio-label{display:flex;align-items:center;gap:12px;min-height:50px;cursor:pointer;background:var(--secondary);color:var(--dark);padding:10px 14px;border-radius:4px;margin-bottom:9px}
-.radio-label:has(:checked){background:var(--light)}
-.radio-label input{appearance:none;width:21px;height:21px;flex-shrink:0;border:1.5px solid var(--dark);border-radius:50%;margin:0;display:grid;place-items:center}
-.radio-label input:checked::before{content:"";width:11px;height:11px;background:var(--dark);border-radius:50%}
+.radio-label{position:relative;display:flex;align-items:center;gap:12px;min-height:50px;cursor:pointer;background:transparent;color:var(--dark);padding:8px 0;border:0;margin-bottom:9px}
+.radio-label input{appearance:none;width:24px;height:24px;flex-shrink:0;border:2px solid currentColor;border-radius:50%;background:transparent;color:var(--dark);margin:0;display:grid;place-items:center}
+.radio-label .radio-tick{display:none;position:absolute;left:4.5px;top:50%;width:15px;height:15px;transform:translateY(-50%);pointer-events:none}
+.radio-label input:checked+.radio-tick{display:block}
 .field-error{font-size:12px;color:var(--dark);line-height:1.6}
 .field-error:not(:empty){margin-top:8px}
 [aria-invalid="true"]{border-width:2.5px!important;border-style:dashed!important}
@@ -185,10 +185,7 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 .guest-dialog{border-radius:21px 13px 24px 12px / 14px 22px 13px 23px;box-shadow:2px 3px 0 -1px var(--white),3px 4px 0 var(--primary)}
 .rsvp .button{border-radius:13px 8px 15px 7px / 8px 14px 7px 15px;box-shadow:1px 2px 0 var(--dark)}
 .guest-dialog textarea{border-radius:6px 13px 5px 10px / 11px 5px 12px 6px}
-.radio-label{border:1.5px solid var(--primary);border-radius:10px 5px 12px 6px / 6px 10px 5px 13px}
-.radio-label:nth-of-type(even){border-radius:7px 12px 5px 10px / 12px 6px 11px 7px}
 .radio-label input{border-radius:48% 52% 45% 55% / 55% 45% 52% 48%}
-.radio-label input:checked::before{border-radius:44% 56% 50% 50%}
 .loading-spinner{border-radius:48% 52% 45% 55% / 55% 45% 52% 48%}
 
 .celebration{padding-top:12px;padding-bottom:60px;text-align:center}
@@ -196,8 +193,7 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 .banquet-divider .art{position:absolute;top:50%;left:50%;width:110vw;transform:translate(-50%,-50%);z-index:-1}
 .closing-message{max-width:700px;margin:44px auto 0;font-size:23px;color:var(--primary);font-weight:400;line-height:1.5;text-transform:uppercase;text-wrap:balance}
 .bank-account{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:38px;font-size:18px;letter-spacing:.08em;white-space:nowrap}
-.copy-iban{display:inline-flex;justify-content:center;align-items:center;flex-shrink:0;min-width:40px;min-height:44px;padding:9px;border:1px solid transparent;border-radius:7px;background:var(--white);color:var(--primary)}
-.copy-iban:hover{background:var(--light)}
+.copy-iban{display:inline-flex;justify-content:center;align-items:center;flex-shrink:0;min-width:40px;min-height:44px;padding:9px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--primary)}
 .copy-iban .handdrawn-icon{width:20px;height:20px}
 .copy-iban .copy-check{display:none}
 .copy-iban:is([data-copied="true"]:not(:hover),[data-clicked="true"],:active) .copy-icon{display:none}
@@ -220,7 +216,7 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
   body{font-size:15px}.section{padding-inline:24px}h2{font-size:32px}
   .button{font-size:16px;padding:13px 18px;min-height:52px}
   .home-hero{padding-top:52px}.hero-copy{padding-inline:24px}.hero-opening{max-width:520px;font-size:14px;line-height:1.8}
-  .home-hero h1{font-size:clamp(66px,16vw,104px);margin-top:26px;line-height:1.25}.hero-date{font-size:32px;margin-top:12px}.hero-location{font-size:13px;margin-top:14px}
+  .home-hero h1{font-size:clamp(66px,16vw,104px);margin-top:26px;line-height:1.25}.hero-date{font-size:32px;margin-top:12px}
   .home-hero .art{width:94%;margin-top:30px}
   .ceremony{grid-template-columns:1fr;gap:35px;padding-block:48px 40px;text-align:center}.ceremony>div:not(.calendar){padding-top:0}.ceremony h2,.ceremony .venue-name{font-size:32px}.ceremony .calendar{grid-row:2;max-width:270px;width:100%;margin:auto}.ceremony p{font-size:15px}.calendar p{font-size:30px}.ceremony .text-link{margin-top:22px}
   .timeline{padding-block:35px 48px}.timeline h2{font-size:30px;max-width:400px;margin:auto}.timeline ol{grid-template-columns:1fr;gap:36px;max-width:450px;margin-top:38px}.timeline-item{gap:12px}.timeline-art{max-width:96px;max-height:112px}.timeline h3{font-size:17px}.timeline-copy>p:last-child{font-size:14px;max-width:410px;margin:auto}.timeline-time{font-size:30px}
@@ -234,5 +230,18 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 @media(max-width:374px){
   .section{padding-inline:18px}.hero-copy{padding-inline:20px}.hero-opening{font-size:13px}.home-hero h1{font-size:64px}.closing-message{font-size:18px}
 }
-@media(prefers-reduced-motion:reduce){:root{scroll-behavior:auto}*,*::before,*::after{transition:none!important}.loading-spinner{animation:none}}
-@media print{.skip-link,.rsvp,.button{display:none!important}.section{break-inside:avoid}}
+/* Entrades suaus sense canviar l'espai que ocupa cada element. */
+.reveal-pending{opacity:0}
+@keyframes appear{from{opacity:0;translate:0 10px}to{opacity:1;translate:0 0}}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+@keyframes ink-appear{from{opacity:0;scale:.8}to{opacity:1;scale:1}}
+@keyframes heart-beat{0%,100%{scale:1}45%{scale:1.12}70%{scale:.98}}
+.guest-dialog[open]{animation:appear .25s ease-out}
+.guest-dialog[open]::backdrop,.loading-dialog[open]{animation:fade-in .2s ease-out}
+#attendance-fields:not([hidden]),.guest-saved:not([hidden]),.rsvp-success:not([hidden]),.rsvp-error:not([hidden]){animation:appear .35s ease-out}
+.guest-edit{animation:ink-appear .25s ease-out}
+.radio-label input:checked+.radio-tick,.copy-check,.rsvp-result:not([hidden]) .handdrawn-icon{animation:ink-appear .22s ease-out}
+.rsvp-success:not([hidden]) .icon-heart{animation:heart-beat .65s ease-out .2s}
+@media(hover:hover){.guest-tile,.button{transition:background-color .18s,color .18s,border-color .18s,scale .18s}.guest-tile:hover,.button:hover{scale:1.025}.guest-tile:active,.button:active{scale:.98}}
+@media(prefers-reduced-motion:reduce){:root{scroll-behavior:auto}*,*::before,*::after{transition:none!important;animation:none!important}.reveal-pending{opacity:1}}
+@media print{.skip-link,.rsvp,.button{display:none!important}.section{break-inside:avoid}.reveal-pending{opacity:1}}

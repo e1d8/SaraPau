@@ -28,6 +28,8 @@ L’IBAN té un botó de còpia que es transforma en un tick. El tick, la creu, 
 
 La paleta i l’adaptació a mòbil estan en `assets/css/site.css`. Les il·lustracions utilitzen màscares CSS per a recolorir el traç sense pintar-ne els espais transparents. El blanc continua blanc.
 
+Les animacions d’entrada estan en `assets/js/motion.js`; les del formulari i les icones, en el CSS. En entrar per l’inici, la benvinguda presenta primer els noms, després la data i després el missatge, durant uns dos segons. La resta d’elements espera fins al final i apareix quan arriba a la pantalla. Les entrades es mostren una sola vegada, conserven l’espai dels elements i no requerixen cap llibreria. El focus de teclat permet saltar la benvinguda i revela el contingut immediatament. La preferència de moviment reduït desactiva les animacions, també si es canvia mentre el web està obert.
+
 ## RSVP: només una prova local
 
 La confirmació permet afegir diversos invitats en una graella de cinc columnes. El botó `+` obri el formulari en una finestra modal. Cada resposta guardada genera un botó amb les tres primeres lletres del nom i un llapis per a editar-la. «Guardar resposta» mostra el resum i «Continuar» tanca la finestra. Tancar una resposta sense guardar descarta només els canvis d’eixa finestra.

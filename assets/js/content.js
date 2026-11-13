@@ -40,7 +40,7 @@ export const wedding = {
     forever: 'couple-forever.jpg',
   },
   home: {
-    opening: 'HI HA LLOCS, PERSONES I MOMENTS QUE SEMPRE FORMARAN PART DE LA NOSTRA HISTÒRIA. TORNEM ON TOT VA COMENÇAR PER A CELEBRAR EL NOSTRE AMOR AMB VOSALTRES.',
+    opening: 'Hi ha llocs, persones i moments que sempre formaran part de la nostra història. Tornem on tot va començar per a celebrar el nostre amor amb vosaltres.',
     invitation: 'Amb molta il·lusió, vos convidem a formar part de la celebració de la nostra boda. Ens faria molt feliços compartir amb vosaltres l’inici d’esta nova etapa.',
     details: 'Hem preparat cada detall de la nostra boda amb molta estima perquè siga un dia especial i inoblidable. Descobriu els horaris, el lloc i els moments que tenim tantes ganes de compartir amb vosaltres.',
     story: 'Totes les històries d’amor són boniques, però la nostra és la que més ens agrada. Des que ens vam conéixer, hem compartit records, rialles i un camí que ens ha portat fins ací.',
@@ -48,7 +48,7 @@ export const wedding = {
     farewell: 'LO MILLOR DE LA TERRETA, LA NOSTRA GENT.',
   },
   timeline: [
-    { time: '12:00', title: 'LA CERIMÒNIA', illustration: 'rings', imageSide: 'left', parts: ['Mos casarem a l’', { place: 'church' }, ' de Vila-real'] },
+    { time: '12:00', title: 'LA CERIMÒNIA', illustration: 'esglesia-major', imageSide: 'left', parts: ['Mos casarem a l’', { place: 'church' }, ' de Vila-real'] },
     { time: '13:30', title: 'EIXIDA BUS ANADA', illustration: 'heart', imageSide: 'right', parts: ['Desde el ', { place: 'lluisos' }, ' cap a ', { place: 'celebration' }] },
     { time: '14:00', title: 'LA CELEBRACIÓ', illustration: 'calendar', imageSide: 'left', parts: ['Hi haurà aparcament al recinte. En ', { place: 'celebration' }, ' farem coctel, dinar i acabarem fent festa!'] },
     { time: '00:00', title: 'EIXIDA BUS TORNADA', illustration: 'champagne', imageSide: 'right', parts: ['Desde ', { place: 'celebration' }, ' als ', { place: 'lluisos' }] },

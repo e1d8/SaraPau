@@ -50,7 +50,10 @@ test('La landing mostra les seccions sol·licitades dins de /SaraPau/ en escript
       assert.equal(await page.locator('h1').count(), 1);
       assert.equal(await page.locator('nav, [role="tablist"], .back-top').count(), 0);
       assert.deepEqual(await page.locator('main > section').evaluateAll(sections => sections.map(el => el.classList[0])), ['home-hero', 'timeline', 'rsvp', 'celebration']);
-      assert.equal(await page.locator('.hero-opening').textContent(), 'HI HA LLOCS, PERSONES I MOMENTS QUE SEMPRE FORMARAN PART DE LA NOSTRA HISTÒRIA. TORNEM ON TOT VA COMENÇAR PER A CELEBRAR EL NOSTRE AMOR AMB VOSALTRES.');
+      assert.equal(await page.locator('.hero-opening').textContent(), 'Hi ha llocs, persones i moments que sempre formaran part de la nostra història. Tornem on tot va començar per a celebrar el nostre amor amb vosaltres.');
+      assert.equal(await page.locator('.hero-opening').evaluate(el => getComputedStyle(el).textTransform), 'none');
+      assert.equal(await page.locator('.hero-location').count(), 0);
+      assert.equal(await page.locator('.timeline-item').first().locator('.art-esglesia-major').count(), 1);
       assert.equal(await page.locator('.closing-message').textContent(), 'LO MILLOR DE LA TERRETA, LA NOSTRA GENT.');
       assert.ok((await page.locator('.bank-account').textContent()).includes('ES11 0049 0070 1525 9029 9271'));
       assert.equal(await page.locator('.site-footer h2').textContent(), 'Algun dubte?');
@@ -98,6 +101,49 @@ test('La landing mostra les seccions sol·licitades dins de /SaraPau/ en escript
     assert.deepEqual(external, []);
     await page.close();
   }
+});
+
+test('La benvinguda mostra noms, data i missatge abans de revelar la resta', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'no-preference' });
+  await load(page);
+  const phase = name => page.waitForFunction(value => document.querySelector('.home-hero').dataset.intro === value, name);
+  await phase('date');
+  assert.equal(await page.locator('#hero-title').evaluate(el => getComputedStyle(el).opacity), '1');
+  assert.equal(await page.locator('.hero-opening').evaluate(el => el.classList.contains('reveal-pending')), true);
+  assert.equal(await page.locator('.home-hero > .art').evaluate(el => el.classList.contains('reveal-pending')), true);
+  await phase('message');
+  assert.equal(await page.locator('.hero-date').evaluate(el => getComputedStyle(el).opacity), '1');
+  assert.equal(await page.locator('.home-hero > .art').evaluate(el => el.classList.contains('reveal-pending')), true);
+  await phase('complete');
+  assert.equal(await page.locator('.hero-opening').evaluate(el => getComputedStyle(el).opacity), '1');
+  await page.waitForFunction(() => !document.querySelector('.home-hero > .art').classList.contains('reveal-pending'));
+  await page.close();
+});
+
+test('Les entrades apareixen en fer scroll i respecten el teclat i el moviment reduït', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'no-preference' });
+  await load(page);
+  const message = page.locator('.closing-message');
+  assert.equal(await message.evaluate(el => el.classList.contains('reveal-pending') && getComputedStyle(el).opacity === '0'), true);
+  await message.scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => {
+    const el = document.querySelector('.closing-message');
+    return !el.classList.contains('reveal-pending') && getComputedStyle(el).opacity === '1';
+  });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForFunction(() => document.querySelector('.home-hero').dataset.intro === 'complete');
+  await page.evaluate(() => document.querySelector('.footer-names a').focus({ preventScroll: true }));
+  assert.equal(await page.locator('.footer-names').evaluate(el => el.classList.contains('reveal-pending')), false);
+  assert.ok(await page.locator('.reveal-pending').count() > 0);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => document.querySelectorAll('.reveal-pending').length === 0);
+  assert.equal(await page.evaluate(() => document.getAnimations().some(animation => animation.playState === 'running')), false);
+  await page.reload({ waitUntil: 'networkidle' });
+  assert.equal(await page.locator('.reveal-pending').count(), 0);
+  assert.equal(await message.evaluate(el => getComputedStyle(el).opacity), '1');
+  await page.close();
 });
 
 test('Les metadades i la imatge es poden llegir sense JavaScript amb agents de WhatsApp i Telegram', async () => {
