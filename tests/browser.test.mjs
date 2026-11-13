@@ -53,6 +53,12 @@ test('La landing mostra les seccions sol·licitades dins de /SaraPau/ en escript
       assert.equal(await page.locator('.hero-opening').textContent(), 'Hi ha llocs, persones i moments que sempre formaran part de la nostra història. Tornem on tot va començar per a celebrar el nostre amor amb vosaltres.');
       assert.equal(await page.locator('.hero-opening').evaluate(el => getComputedStyle(el).textTransform), 'none');
       assert.equal(await page.locator('.hero-location').count(), 0);
+      const mediumStyles = await page.locator('.hero-date,.timeline h3').evaluateAll(elements => elements.map(el => {
+        const style = getComputedStyle(el);
+        return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight, style.color];
+      }));
+      assert.deepEqual(mediumStyles[0], mediumStyles[1]);
+      assert.deepEqual(await page.locator('.hero-copy > *').evaluateAll(elements => elements.map(el => el.classList[0])), ['signature', 'hero-date', 'hero-opening']);
       assert.equal(await page.locator('.timeline-item').first().locator('.art-esglesia-major').count(), 1);
       assert.equal(await page.locator('.closing-message').textContent(), 'LO MILLOR DE LA TERRETA, LA NOSTRA GENT.');
       assert.ok((await page.locator('.bank-account').textContent()).includes('ES11 0049 0070 1525 9029 9271'));
@@ -107,16 +113,42 @@ test('La benvinguda mostra noms, data i missatge abans de revelar la resta', asy
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'no-preference' });
   await load(page);
   const phase = name => page.waitForFunction(value => document.querySelector('.home-hero').dataset.intro === value, name);
+  assert.ok(await page.locator('#hero-title .name-letter').count() > 1);
+  assert.equal(await page.locator('#hero-title .name-letter').evaluateAll(letters => letters.map(el => el.textContent).join('')), 'Sara i Pau');
+  assert.equal(await page.locator('#hero-title .name-letter').evaluateAll(letters => letters.every(el => getComputedStyle(el).clipPath === 'none')), true);
+  assert.equal(await page.getByRole('heading', { name: 'Sara i Pau', exact: true }).count(), 1);
+  const letterStates = await page.locator('#hero-title .name-letter').evaluateAll(letters => letters.map(letter => getComputedStyle(letter).opacity));
+  assert.ok(letterStates.includes('0') && letterStates.some(value => Number(value) > 0));
+  assert.match(await page.locator('.name-letters').evaluate(el => getComputedStyle(el).maskImage), /linear-gradient/);
   await phase('date');
+  assert.ok(await page.locator('#hero-title .name-letter').count() > 0, 'La data entra mentre acaba el rebot dels noms');
   assert.equal(await page.locator('#hero-title').evaluate(el => getComputedStyle(el).opacity), '1');
   assert.equal(await page.locator('.hero-opening').evaluate(el => el.classList.contains('reveal-pending')), true);
   assert.equal(await page.locator('.home-hero > .art').evaluate(el => el.classList.contains('reveal-pending')), true);
+  const messageHeight = await page.locator('.hero-opening').evaluate(el => el.getBoundingClientRect().height);
   await phase('message');
+  assert.equal(await page.locator('#hero-title .name-letter').count(), 0);
   assert.equal(await page.locator('.hero-date').evaluate(el => getComputedStyle(el).opacity), '1');
+  assert.ok(await page.locator('.type-letter').count() > 100);
+  assert.ok(await page.locator('.type-letter').evaluateAll(letters => letters.some(el => getComputedStyle(el).opacity === '0')));
+  assert.equal(await page.locator('.hero-opening').evaluate(el => el.getBoundingClientRect().height), messageHeight);
   assert.equal(await page.locator('.home-hero > .art').evaluate(el => el.classList.contains('reveal-pending')), true);
   await phase('complete');
+  assert.equal(await page.locator('.type-letter').count(), 0);
   assert.equal(await page.locator('.hero-opening').evaluate(el => getComputedStyle(el).opacity), '1');
   await page.waitForFunction(() => !document.querySelector('.home-hero > .art').classList.contains('reveal-pending'));
+  await page.close();
+});
+
+test('Reduir el moviment durant l’escriptura mostra tot el text i cancel·la les lletres', async () => {
+  const page = await browser.newPage({ reducedMotion: 'no-preference' });
+  await load(page);
+  await page.waitForFunction(() => document.querySelector('.home-hero').dataset.intro === 'message');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => document.querySelectorAll('.name-letter,.type-letter,.reveal-pending').length === 0);
+  assert.equal(await page.locator('#hero-title').textContent(), 'Sara i Pau');
+  assert.equal(await page.locator('.hero-opening').textContent(), 'Hi ha llocs, persones i moments que sempre formaran part de la nostra història. Tornem on tot va començar per a celebrar el nostre amor amb vosaltres.');
+  assert.equal(await page.evaluate(() => document.getAnimations().some(animation => animation.playState === 'running')), false);
   await page.close();
 });
 
@@ -125,6 +157,7 @@ test('Les entrades apareixen en fer scroll i respecten el teclat i el moviment r
   await load(page);
   const message = page.locator('.closing-message');
   assert.equal(await message.evaluate(el => el.classList.contains('reveal-pending') && getComputedStyle(el).opacity === '0'), true);
+  await page.waitForFunction(() => document.querySelector('.home-hero').dataset.intro === 'complete');
   await message.scrollIntoViewIfNeeded();
   await page.waitForFunction(() => {
     const el = document.querySelector('.closing-message');
@@ -143,6 +176,35 @@ test('Les entrades apareixen en fer scroll i respecten el teclat i el moviment r
   await page.reload({ waitUntil: 'networkidle' });
   assert.equal(await page.locator('.reveal-pending').count(), 0);
   assert.equal(await message.evaluate(el => getComputedStyle(el).opacity), '1');
+  await page.close();
+});
+
+test('La recàrrega comença dalt i la benvinguda bloqueja el scroll fins al final', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'no-preference', hasTouch: true });
+  await load(page);
+  assert.equal(await page.evaluate(() => document.documentElement.classList.contains('intro-locked')), true);
+  assert.equal(await page.locator('.page-scrollbar').isVisible(), false);
+  await page.mouse.wheel(0, 700);
+  await page.keyboard.press('PageDown');
+  await page.evaluate(() => scrollTo({ top: 700, behavior: 'instant' }));
+  assert.equal(await page.evaluate(() => scrollY), 0);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 200, y: 600 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 200, y: 200 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  assert.equal(await page.evaluate(() => scrollY), 0);
+  await page.waitForFunction(() => document.querySelector('.home-hero').dataset.intro === 'complete');
+  assert.equal(await page.evaluate(() => document.documentElement.classList.contains('intro-locked')), false);
+  await page.evaluate(() => scrollTo({ top: 700, behavior: 'instant' }));
+  assert.ok(await page.evaluate(() => scrollY > 500));
+  await page.evaluate(() => history.replaceState(null, '', '#rsvp'));
+  await page.reload({ waitUntil: 'networkidle' });
+  assert.deepEqual(await page.evaluate(() => ({ y: scrollY, hash: location.hash, locked: document.documentElement.classList.contains('intro-locked') })), { y: 0, hash: '', locked: true });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => !document.documentElement.classList.contains('intro-locked'));
+  assert.equal(await page.evaluate(() => scrollY), 0);
+  await page.evaluate(() => scrollTo({ top: 700, behavior: 'instant' }));
+  assert.ok(await page.evaluate(() => scrollY > 500));
   await page.close();
 });
 

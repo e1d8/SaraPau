@@ -13,7 +13,7 @@ const iconPaths = {
   copy: '<path d="M9.2 7.7c3-.3 6-.1 9.1-.2 1.1 0 1.8.6 1.7 1.8l.2 9.4c0 1.2-.5 1.8-1.7 1.9l-9.2.2c-1.2 0-1.8-.6-1.8-1.8l-.2-9.2c0-1.3.6-2 1.9-2.1Z"/><path d="m7.5 16.7-2.3.1c-1.2 0-1.8-.6-1.8-1.8l.2-10c0-1.1.5-1.8 1.7-1.9l8.8.2c1.2 0 1.8.6 1.8 1.7l-.1 2.4"/>',
 };
 const icon = (name, extra = '') => `<svg class="handdrawn-icon icon-${name} ${extra}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${iconPaths[name]}</svg>`;
-const external = (url, label, extra = '') => `<a class="${extra}" href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(label)}<span class="sr-only"> (s’obri en una altra pestanya)</span></a>`;
+const external = (url, label, extra = '') => `<a class="${extra}" href="${escape(url)}" target="_blank" rel="noopener noreferrer"><span class="link-text">${escape(label)}</span><span class="sr-only"> (s’obri en una altra pestanya)</span></a>`;
 const placeLink = key => {
   const place = w.places[key];
   return external(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}`, place.name);
@@ -25,7 +25,7 @@ function rsvp() {
       <h2 class="form-heading" id="rsvp-title">Confirmació<span class="rsvp-result" aria-hidden="true" hidden>${icon('check')}${icon('cross')}</span></h2>
       <div id="guest-manager">
         <p class="rsvp-description">Afegix la resposta de tots els invitats del teu cercle</p>
-        <div class="guest-grid" id="guest-grid" role="group" aria-label="Respostes dels invitats"><button class="guest-tile guest-add" id="add-guest" type="button" aria-label="Afegir invitat"><span aria-hidden="true">+</span></button></div>
+        <div class="guest-grid" id="guest-grid" role="group" aria-label="Respostes dels invitats"><button class="guest-tile guest-add" id="add-guest" type="button" aria-label="Afegir invitat"><svg class="guest-add-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M15 3C37 2 66 4 86 2Q97 1 97 15C98 40 96 64 98 83Q99 96 84 97C61 98 38 96 16 98Q3 99 3 85C2 63 4 38 2 16Q1 4 15 3Z" vector-effect="non-scaling-stroke" stroke-dasharray="4 5 2.5 5"/></svg><span aria-hidden="true">+</span></button></div>
         <button class="button send-replies" id="send-replies" type="button" hidden>Enviar respostes</button>
       </div>
       <div class="rsvp-success" id="rsvp-success" hidden><h3 tabindex="-1">Gràcies ${icon('heart')}</h3></div>
@@ -51,8 +51,8 @@ function rsvp() {
 
 function landing() {
   return `<main id="contingut">
-    <section class="home-hero" aria-labelledby="hero-title"><div class="hero-copy"><p class="hero-opening">${escape(w.home.opening)}</p><h1 class="signature" id="hero-title">${escape(w.couple)}</h1><p class="hero-date"><time datetime="${escape(w.date)}">${escape(w.dateShort)}</time></p></div>${art('wedding-table')}</section>
-    <section class="timeline section" id="detalls" aria-labelledby="timeline-title"><h2 id="timeline-title">EL PROGRAMA DE LA BODA</h2><ol>${w.timeline.map(item => `<li class="timeline-item image-${escape(item.imageSide)}">${art(item.illustration, `timeline-art${item.imageFlipped ? ' is-flipped' : ''}`)}<div class="timeline-copy"><p class="timeline-time">${escape(item.time)}</p><h3>${escape(item.title)}</h3><p>${item.parts.map(part => typeof part === 'string' ? escape(part) : placeLink(part.place)).join('')}</p></div></li>`).join('')}</ol></section>
+    <section class="home-hero" aria-labelledby="hero-title"><div class="hero-copy"><h1 class="signature" id="hero-title">${escape(w.couple)}</h1><p class="hero-date"><time datetime="${escape(w.date)}">${escape(w.dateShort)}</time></p><p class="hero-opening">${escape(w.home.opening)}</p></div>${art('wedding-table')}</section>
+    <section class="timeline section" id="detalls" aria-labelledby="timeline-title"><h2 id="timeline-title">EL PROGRAMA DE LA BODA</h2><ol>${w.timeline.map(item => `<li class="timeline-item image-${escape(item.imageSide)}${item.kind === 'transport' ? ' is-transport' : ''}">${art(item.illustration, `timeline-art${item.imageFlipped ? ' is-flipped' : ''}`)}<div class="timeline-copy"><p class="timeline-time">${escape(item.time)}</p><h3>${escape(item.title)}</h3><p>${item.parts.map(part => typeof part === 'string' ? escape(part) : placeLink(part.place)).join('')}</p></div></li>`).join('')}</ol></section>
     ${rsvp()}
     <section class="celebration section" aria-label="La nostra gent"><div class="banquet-divider" aria-hidden="true">${art('banquet')}</div><p class="closing-message">${escape(w.home.farewell)}</p><div class="bank-account"><p><span class="sr-only">Compte bancari: </span><span id="iban">${escape(w.bankAccount)}</span></p><button class="copy-iban" id="copy-iban" type="button" aria-label="Copia l’IBAN" title="Copia l’IBAN">${icon('copy', 'copy-icon')}${icon('check', 'copy-check')}</button></div><p class="copy-status sr-only" id="copy-status" role="status" aria-live="polite"></p></section>
   </main><footer class="site-footer"><h2>Algun dubte?</h2><p class="footer-names">${w.contacts.map(contact => external(`https://wa.me/${contact.phone}`, contact.name)).join(' <span class="name-separator">·</span> ')}</p></footer>`;

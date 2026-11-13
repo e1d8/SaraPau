@@ -104,5 +104,5 @@ test('El codi de l’RSVP no inclou transport ni emmagatzematge', async () => {
   assert.doesNotMatch(js, /fetch\s*\(|XMLHttpRequest|sendBeacon|localStorage|sessionStorage|indexedDB|document\.cookie/);
   assert.match(js, /event\.preventDefault\(\)/);
   const assets = await readdir(resolve(root, 'assets/js'));
-  assert.deepEqual(assets.sort(), ['app.js', 'content.js', 'motion.js', 'rsvp.js', 'scrollbar.js']);
+  assert.deepEqual(assets.sort(), ['app.js', 'content.js', 'motion.js', 'navigation.js', 'rsvp.js', 'scrollbar.js']);
 });

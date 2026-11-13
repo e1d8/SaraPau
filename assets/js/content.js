@@ -49,9 +49,9 @@ export const wedding = {
   },
   timeline: [
     { time: '12:00', title: 'LA CERIMÒNIA', illustration: 'esglesia-major', imageSide: 'left', parts: ['Mos casarem a l’', { place: 'church' }, ' de Vila-real'] },
-    { time: '13:30', title: 'EIXIDA BUS ANADA', illustration: 'heart', imageSide: 'right', parts: ['Desde el ', { place: 'lluisos' }, ' cap a ', { place: 'celebration' }] },
+    { time: '13:30', title: 'EIXIDA BUS ANADA', kind: 'transport', illustration: 'heart', imageSide: 'right', parts: ['Desde el ', { place: 'lluisos' }, ' cap a ', { place: 'celebration' }] },
     { time: '14:00', title: 'LA CELEBRACIÓ', illustration: 'calendar', imageSide: 'left', parts: ['Hi haurà aparcament al recinte. En ', { place: 'celebration' }, ' farem coctel, dinar i acabarem fent festa!'] },
-    { time: '00:00', title: 'EIXIDA BUS TORNADA', illustration: 'champagne', imageSide: 'right', parts: ['Desde ', { place: 'celebration' }, ' als ', { place: 'lluisos' }] },
+    { time: '00:00', title: 'EIXIDA BUS TORNADA', kind: 'transport', illustration: 'champagne', imageSide: 'right', parts: ['Desde ', { place: 'celebration' }, ' als ', { place: 'lluisos' }] },
   ],
   dresscode: 'Vos demanem que vingueu amb vestimenta formal. Podeu inspirar-vos en estos tons.',
   entourageIntro: 'Amb l’estima i el suport de les persones que ens acompanyen de més a prop.',
