@@ -3,118 +3,93 @@ import { setupRsvp } from './rsvp.js';
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const art = (name, extra = '') => `<span class="art art-${name} ${extra}" aria-hidden="true"></span>`;
-const photo = (name, alt, extra = '', eager = false) => `<img class="${extra}" src="assets/photos/${escape(w.photos[name])}" alt="${escape(alt)}" loading="${eager ? 'eager' : 'lazy'}" decoding="async">`;
 const external = (url, label, extra = '') => `<a class="${extra}" href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(label)}<span class="sr-only"> (s’obri en una altra pestanya)</span></a>`;
-const button = (url, label, outline = false) => `<a class="button${outline ? ' button-outline' : ''}" href="${escape(url)}">${escape(label)}</a>`;
-const page = document.body.dataset.page;
-
-function header() {
-  const items = [['home', 'index.html', 'Inici'], ['details', 'detalls.html', 'Detalls de la boda'], ['story', 'historia.html', 'La nostra història']];
-  return `<header class="site-header"><nav aria-label="Navegació principal">${items.map(([id, href, label]) => `<a href="${href}"${id === page ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav></header>`;
-}
-
-function footer({ dark = false, invitation = false } = {}) {
-  return `<footer class="site-footer${dark ? ' site-footer-dark' : ''}">
-    <div class="footer-inner">
-      <p class="footer-message">${escape(invitation ? 'Tenim moltes ganes de celebrar-ho amb vosaltres!' : w.home.farewell)}</p>
-      ${invitation ? button('index.html#rsvp', 'Confirma l’assistència', dark) : ''}
-      <p class="signature footer-signature">${escape(w.couple)}</p>
-      <div class="contacts"><h2>Tens algun dubte?</h2>${w.contacts.map(contact => `<div><p class="signature contact-name">${escape(contact.name)}</p><a href="mailto:${escape(contact.email)}">${escape(contact.email)}</a></div>`).join('')}</div>
-    </div>
-    ${dark ? '' : '<a class="back-top" href="#inici">↑ Torna a l’inici</a>'}
-  </footer>`;
-}
-
-function letterCard() {
-  return `<div class="letter-card">
-    ${art('letter-frame')}
-    ${photo('invitation', 'Una parella compartix un moment davall del vel, en blanc i negre.', 'letter-photo')}
-    <div class="letter-copy"><p>${escape(w.home.invitation)}</p><p class="with-love">Amb estima,</p><p class="signature">${escape(w.couple)}</p></div>
-  </div>`;
-}
-
-function postcard() {
-  return `<div class="postcard">
-    ${photo('postcard', 'Una parella abraçada en una fotografia de demostració en blanc i negre.')}
-    ${art('postcard')}
-    <p class="signature">${escape(w.couple)}</p>
-  </div>`;
-}
+const placeLink = key => {
+  const place = w.places[key];
+  return external(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}`, place.name);
+};
 
 function rsvp() {
   return `<section class="rsvp section" id="rsvp" aria-labelledby="rsvp-title">
-    <div class="rsvp-intro">${postcard()}<h2 id="rsvp-title">Confirma<br>l’assistència</h2><p>${escape(w.home.rsvp)}</p><p class="reply-by">Per favor, respon abans del<br><strong>${escape(w.replyBy)}.</strong></p></div>
     <div class="rsvp-panel">
-      <form id="rsvp-form" novalidate autocomplete="off" aria-labelledby="rsvp-title" aria-describedby="rsvp-notice">
-        <h3 class="form-heading">Confirmació</h3>
-        <p class="form-notice" id="rsvp-notice">Formulari de prova: no s’enviarà cap resposta.</p>
-        <div class="form-field"><label for="guest-name">Nom i cognoms <span aria-hidden="true">*</span></label><input id="guest-name" name="name" type="text" required maxlength="160" autocomplete="off" aria-describedby="name-error"><p class="field-error" id="name-error" data-error="name"></p></div>
-        <fieldset class="attendance"><legend>Ens acompanyaràs? <span aria-hidden="true">*</span></legend><label class="radio-label"><input type="radio" name="attendance" value="yes" required aria-describedby="attendance-error"><span>Sí, allí estaré!</span></label><label class="radio-label"><input type="radio" name="attendance" value="no" required aria-describedby="attendance-error"><span>No podré vindre</span></label><p class="field-error" id="attendance-error" data-error="attendance"></p></fieldset>
-        <div id="attendance-fields" hidden>
-          <div class="form-field"><label for="guest-count">Nombre d’assistents <span aria-hidden="true">*</span></label><p class="field-help" id="guests-help">Inclou-te a tu i les persones que t’acompanyen.</p><input id="guest-count" name="guests" type="number" min="1" step="1" value="1" disabled aria-describedby="guests-help guests-error"><p class="field-error" id="guests-error" data-error="guests"></p></div>
-          <div class="form-field"><label for="dietary">Al·lèrgies o necessitats alimentàries</label><textarea id="dietary" name="dietary" rows="2" maxlength="1500" disabled></textarea></div>
-        </div>
-        <div class="form-field"><label for="guest-message">Vols deixar-nos un missatge?</label><textarea id="guest-message" name="message" rows="3" maxlength="2000"></textarea></div>
-        <p class="field-help">Els camps amb * són obligatoris.</p>
-        <p class="field-error form-status" id="form-status" role="status" aria-live="polite"></p>
-        <button class="button" type="submit">Confirma l’assistència</button>
-      </form>
-      <div class="rsvp-success" id="rsvp-success" hidden>
-        <svg class="reply-heart" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 51C25 44 9 34 9 22 9 9 26 7 32 19 38 7 55 9 55 22 55 34 39 44 32 51Z"/></svg><h3 tabindex="-1">Gràcies per provar-lo!</h3><p id="reply-summary"></p><p>Esta confirmació és només una prova. No s’ha enviat cap dada i la resposta desapareixerà quan recarregues la pàgina.</p><button class="button button-outline" type="button" id="edit-reply">Edita la resposta</button>
+      <h2 class="form-heading" id="rsvp-title">Confirmació</h2>
+      <div id="guest-manager">
+        <p class="rsvp-description">Afegix la resposta de tots els invitats del teu cercle</p>
+        <div class="guest-grid" id="guest-grid" role="group" aria-label="Respostes dels invitats"><button class="guest-tile guest-add" id="add-guest" type="button" aria-label="Afegir invitat"><span aria-hidden="true">+</span></button></div>
+        <button class="button send-replies" id="send-replies" type="button" hidden>Enviar respostes</button>
       </div>
+      <div class="rsvp-success" id="rsvp-success" hidden><svg class="reply-heart" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 51C25 44 9 34 9 22 9 9 26 7 32 19 38 7 55 9 55 22 55 34 39 44 32 51Z"/></svg><h3 tabindex="-1">Gràcies</h3></div>
+      <p class="rsvp-error" id="rsvp-error" role="alert" tabindex="-1" hidden>Alguna cosa ha anat mal, tona-ho a intentar més tard</p>
     </div>
+    <dialog class="guest-dialog" id="guest-dialog" aria-labelledby="guest-dialog-title">
+      <div class="guest-dialog-header"><h3 id="guest-dialog-title">Afegir invitat</h3><button class="close-dialog" id="close-guest-dialog" type="button" aria-label="Tancar finestra"><span aria-hidden="true">×</span></button></div>
+      <form id="rsvp-form" novalidate autocomplete="off" aria-labelledby="guest-dialog-title">
+        <div class="form-field"><label for="guest-name">Nom i cognoms <span aria-hidden="true">*</span></label><input id="guest-name" name="name" type="text" required maxlength="160" autocomplete="off" aria-describedby="form-status"></div>
+        <fieldset class="attendance"><legend>Mos acompanyaràs? <span aria-hidden="true">*</span></legend><label class="radio-label"><input type="radio" name="attendance" value="yes" required aria-describedby="form-status"><span>Sí, allí estaré!</span></label><label class="radio-label"><input type="radio" name="attendance" value="no" required aria-describedby="form-status"><span>No podré vindre</span></label></fieldset>
+        <div id="attendance-fields" hidden>
+          <fieldset class="bus-choice"><legend>Te farà falta bus per anar i tornar? <span aria-hidden="true">*</span></legend>${w.busOptions.map(option => `<label class="radio-label"><input type="radio" name="bus" value="${escape(option.value)}" disabled aria-describedby="form-status"><span>${escape(option.label)}</span></label>`).join('')}</fieldset>
+          <div class="form-field"><label for="dietary">Al·lèrgies, intoleràncies, dieta vegetariana, vegana...?</label><input id="dietary" name="dietary" type="text" maxlength="1500" disabled></div>
+        </div>
+        <p class="field-error form-status" id="form-status" role="status" aria-live="polite" hidden></p>
+        <button class="button" type="submit">Guardar resposta</button>
+      </form>
+      <div class="guest-saved" id="guest-saved" hidden><h4 tabindex="-1">Resposta guardada</h4><ul class="reply-summary" id="reply-summary"></ul><button class="button" id="continue-replies" type="button">Continuar</button></div>
+    </dialog>
+    <dialog class="loading-dialog" id="rsvp-loading" aria-labelledby="loading-title"><span class="loading-spinner" aria-hidden="true"></span><h3 id="loading-title" tabindex="-1">Enviant respostes...</h3></dialog>
   </section>`;
 }
 
-function home() {
-  return `${header()}<main id="contingut">
-    <section class="home-hero" aria-labelledby="hero-title"><div class="hero-copy"><p class="eyebrow">Vos convidem amb molta il·lusió</p><p class="hero-subtitle">a celebrar la boda de</p><h1 class="signature" id="hero-title">${escape(w.couple)}</h1><p class="hero-date"><time datetime="${escape(w.date)}">${escape(w.dateShort)}</time></p><p class="hero-location">${escape(w.location)}</p></div>${art('hero-table')}</section>
-    <section class="invitation section" aria-labelledby="invitation-title"><h2 id="invitation-title">Ens<br>casem!</h2>${letterCard()}</section>
-    <section class="explore section" aria-label="Descobriu la nostra boda"><article>${art('champagne')}<h2>Detalls de la boda</h2><p>${escape(w.home.details)}</p>${button('detalls.html', 'Descobrix els detalls')}</article><article>${art('angel')}<h2>La nostra història</h2><p>${escape(w.home.story)}</p>${button('historia.html', 'Llig la nostra història')}</article></section>
-    ${rsvp()}<div class="banquet-divider" aria-hidden="true">${art('banquet')}</div>
-  </main>${footer()}`;
+function landing() {
+  return `<main id="contingut">
+    <section class="home-hero" aria-labelledby="hero-title"><div class="hero-copy"><p class="hero-opening">${escape(w.home.opening)}</p><h1 class="signature" id="hero-title">${escape(w.couple)}</h1><p class="hero-date"><time datetime="${escape(w.date)}">${escape(w.dateShort)}</time></p><p class="hero-location">${escape(w.location)}</p></div>${art('hero-table')}</section>
+    <section class="timeline section" id="detalls" aria-labelledby="timeline-title"><h2 id="timeline-title">EL PROGRAMA DE LA BODA</h2><ol>${w.timeline.map(item => `<li><p class="timeline-time">${escape(item.time)}</p><h3>${escape(item.title)}</h3><p>${item.parts.map(part => typeof part === 'string' ? escape(part) : placeLink(part.place)).join('')}</p></li>`).join('')}</ol></section>
+    ${rsvp()}
+    <section class="celebration section" aria-label="La nostra gent"><div class="banquet-divider" aria-hidden="true">${art('banquet')}</div><p class="closing-message">${escape(w.home.farewell)}</p><div class="bank-account"><p><span class="sr-only">Compte bancari: </span><span id="iban">${escape(w.bankAccount)}</span></p><button class="copy-iban" id="copy-iban" type="button" aria-label="Copia l’IBAN" title="Copia l’IBAN"><svg class="copy-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg><svg class="copy-check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L20 5"/></svg></button></div><p class="copy-status sr-only" id="copy-status" role="status" aria-live="polite"></p></section>
+  </main><footer class="site-footer"><h2>Algun dubte?</h2><p class="footer-names">${w.contacts.map(contact => external(`https://wa.me/${contact.phone}`, contact.name)).join(' <span class="name-separator">·</span> ')}</p></footer>`;
 }
 
-function localMap() {
-  return `<div class="local-map" role="img" aria-label="Il·lustració de la ubicació de la celebració a Napa Valley. Consulta l’enllaç per a veure les indicacions reals."><span class="map-road road-one"></span><span class="map-road road-two"></span><span class="map-road road-three"></span><span class="map-pin" aria-hidden="true">♡</span><span class="map-label">Napa Valley</span></div>`;
-}
-
-function details() {
-  return `${header()}<main id="contingut">
-    <section class="details-hero" aria-labelledby="details-title"><p>Tot el que necessites saber<br>per al nostre gran dia</p><div class="details-scene">${art('wedding-table')}<h1 class="signature" id="details-title">Detalls<br>de la boda</h1></div></section>
-    <section class="ceremony section" aria-label="Data, hora i lloc de la celebració"><div><h2>Cerimònia<br>i celebració</h2><h3>Data</h3><p><time datetime="${escape(w.date)}">${escape(w.dateLong)}</time></p><h3>Hora</h3><p>${escape(w.time)}</p></div><div class="calendar">${art('calendar')}<p>Dia i hora</p></div><div><h2 class="venue-name">${escape(w.venue.name)}</h2><p>${escape(w.venue.address)}</p>${external(w.venue.mapsUrl, 'Consulta Google Maps', 'text-link')}</div></section>
-    <section class="timeline section" aria-labelledby="timeline-title"><h2 id="timeline-title">El programa de la boda</h2><ol>${w.timeline.map(item => `<li><p class="timeline-time">${escape(item.time)}</p><h3>${escape(item.title)}</h3><p>${escape(item.text)}</p></li>`).join('')}</ol></section>
-    <section class="dresscode section" aria-labelledby="dresscode-title"><h2 id="dresscode-title">Com vestir</h2><p>${escape(w.dresscode)}</p><div class="swatches" role="img" aria-label="Tons d’inspiració: verd, verd clar, blanc, negre i groc">${['primary', 'light', 'white', 'black', 'gold'].map(color => art('paint-swatch', `swatch-${color}`)).join('')}</div></section>
-    <section class="directions section" aria-labelledby="directions-title"><div class="directions-letter">${art('letter-frame')}<div class="directions-letter-content"><p>${escape(w.venue.description)}</p>${localMap()}${external(w.venue.mapsUrl, 'Com arribar-hi', 'button')}</div></div><div class="directions-copy"><h2 id="directions-title">Com arribar-hi</h2><h3>En cotxe</h3><p>${escape(w.venue.car)}</p><hr><h3>En transport públic</h3><p>${escape(w.venue.transit)}</p></div></section>
-    <section class="entourage-registry section" aria-label="Acompanyants i regals"><div class="entourage"><h2>Ens acompanyen</h2><p>${escape(w.entourageIntro)}</p><dl>${w.entourage.map(item => `<div><dt>${escape(item.role)}</dt><dd>${escape(item.names)}</dd></div>`).join('')}</dl></div><div class="registry">${art('gift')}<h2>Llista de regals</h2><p>${escape(w.registry.text)}</p>${w.registry.url ? external(w.registry.url, 'Consulta la llista', 'button') : '<button class="button" type="button" id="registry-button" aria-expanded="false" aria-controls="registry-note">Consulta la llista</button>'}${w.registry.url ? '' : `<p class="registry-note" id="registry-note" role="status" hidden>${escape(w.registry.placeholder)}</p>`}</div></section>
-    <section class="accommodation section" aria-labelledby="accommodation-title"><div class="banquet-divider" aria-hidden="true">${art('banquet')}</div><h2 id="accommodation-title">On allotjar-se</h2><p class="accommodation-intro">${escape(w.accommodationIntro)}</p><div class="hotel-grid">${w.hotels.map(hotel => `<article><h3>${escape(hotel.name)}</h3><p><strong>${escape(hotel.distance)}</strong><br>${escape(hotel.text)}</p>${external(hotel.mapsUrl, 'Com arribar-hi', 'button button-outline')}</article>`).join('')}</div></section>
-  </main>${footer({ invitation: true })}`;
-}
-
-function photoMemory(photoKey, className) {
-  return `<div class="photo-memory ${className}">${photo(photoKey, 'Un record de la parella en una fotografia de demostració.')}${art('photo-frame')}</div>`;
-}
-
-function chapter(index, illustration) {
-  const content = w.story.chapters[index];
-  return `<div class="chapter-copy">${art(illustration)}<h2><span>Capítol ${index + 1}</span>${escape(content.title)}</h2><p>${escape(content.text)}</p></div>`;
-}
-
-function story() {
-  return `${header()}<main id="contingut">
-    <section class="story-hero" aria-labelledby="story-title"><h1 class="signature" id="story-title">La nostra història</h1><p class="sr-only">${escape(w.story.opening)}</p><div class="story-portrait"><p class="story-handwriting" aria-hidden="true">${escape(w.story.opening)}</p>${photo('story', 'Una parella abraçada en una fotografia de demostració en blanc i negre.', '', true)}<p class="signature">${escape(w.couple)}</p></div></section>
-    <section class="chapter chapter-one section" aria-label="Capítol 1: El principi">${chapter(0, 'cupid')}<div class="memories">${photoMemory('memoryOne', 'memory-one')}${photoMemory('memoryTwo', 'memory-two')}</div></section>
-    <section class="chapter chapter-two section" aria-label="Capítol 2: Créixer junts">${chapter(1, 'heart')}</section>
-    <section class="chapter chapter-three section" aria-label="Capítol 3: Comença el nostre per sempre"><div class="forever-memory">${photoMemory('forever', 'memory-forever')}<p class="signature">${escape(w.couple)}</p></div>${chapter(2, 'rings')}</section>
-  </main>${footer({ invitation: true, dark: true })}`;
-}
-
-document.querySelector('#app').innerHTML = ({ home, details, story }[page] || home)();
+document.querySelector('#app').innerHTML = landing();
 setupRsvp();
-document.querySelector('#registry-button')?.addEventListener('click', event => {
-  const note = document.querySelector('#registry-note');
-  note.hidden = !note.hidden;
-  event.currentTarget.setAttribute('aria-expanded', String(!note.hidden));
+
+function copyWithSelection(text) {
+  const active = document.activeElement;
+  const selection = window.getSelection();
+  const ranges = selection ? Array.from({ length: selection.rangeCount }, (_, index) => selection.getRangeAt(index).cloneRange()) : [];
+  const buffer = document.createElement('textarea');
+  buffer.value = text;
+  buffer.className = 'clipboard-buffer';
+  buffer.readOnly = true;
+  document.body.append(buffer);
+  buffer.select();
+  let copied = false;
+  try { copied = document.execCommand('copy'); } catch { /* Es mostrarà l’alternativa manual. */ }
+  buffer.remove();
+  if (selection) {
+    selection.removeAllRanges();
+    ranges.forEach(range => selection.addRange(range));
+  }
+  active?.focus({ preventScroll: true });
+  return copied;
+}
+
+const copyButton = document.querySelector('#copy-iban');
+copyButton.addEventListener('pointerleave', () => { delete copyButton.dataset.clicked; });
+copyButton.addEventListener('click', async () => {
+  const status = document.querySelector('#copy-status');
+  status.textContent = '';
+  copyButton.dataset.clicked = String(copyButton.matches(':hover'));
+  let copied = false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(w.bankAccount);
+      copied = true;
+    }
+  } catch { /* Prova la còpia per selecció si el navegador denega l’accés. */ }
+  if (!copied) copied = copyWithSelection(w.bankAccount);
+  copyButton.dataset.copied = String(copied);
+  if (!copied || !copyButton.matches(':hover')) delete copyButton.dataset.clicked;
+  status.classList.toggle('sr-only', copied);
+  status.textContent = copied ? 'Copiat al porta-retalls.' : 'No s’ha pogut copiar. Selecciona l’IBAN i copia’l manualment.';
 });
 
 // Les seccions es creen abans de resoldre l’àncora en entrar des d’una altra pàgina.

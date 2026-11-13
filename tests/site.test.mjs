@@ -3,30 +3,62 @@ import assert from 'node:assert/strict';
 import { readFile, readdir, access } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { wedding } from '../assets/js/content.js';
-import { validateReply } from '../assets/js/rsvp.js';
+import { validateReply, sendRepliesWithTimeout, simulateSendReplies } from '../assets/js/rsvp.js';
 
 const root = resolve(import.meta.dirname, '..');
 
-test('L’RSVP exigix nom, assistència i una quantitat vàlida quan correspon', () => {
-  assert.deepEqual(Object.keys(validateReply({ name: '  ', attendance: '', guests: '' })), ['name', 'attendance']);
-  for (const guests of ['', '0', '-1', '1.5', 'abc', 'Infinity', '1e3', '9007199254740992']) {
-    assert.ok(validateReply({ name: 'Aina Ferrer', attendance: 'yes', guests }).guests, guests);
+test('L’RSVP exigix nom, assistència i bus quan s’hi assistix', () => {
+  assert.deepEqual(Object.keys(validateReply({ name: '  ', attendance: '', bus: '' })), ['name', 'attendance']);
+  for (const { value: bus } of wedding.busOptions) {
+    assert.deepEqual(validateReply({ name: ' Aina Ferrer ', attendance: 'yes', bus }), {});
   }
-  assert.deepEqual(validateReply({ name: ' Aina Ferrer ', attendance: 'yes', guests: '3' }), {});
-  assert.deepEqual(validateReply({ name: 'Aina Ferrer', attendance: 'no', guests: '' }), {});
-  assert.ok(validateReply({ name: 'Aina Ferrer', attendance: 'maybe', guests: '1' }).attendance);
+  assert.deepEqual(validateReply({ name: 'Aina Ferrer', attendance: 'yes', bus: '' }), { bus: true });
+  assert.deepEqual(validateReply({ name: 'Aina Ferrer', attendance: 'no', bus: '' }), {});
+  assert.ok(validateReply({ name: 'Aina Ferrer', attendance: 'maybe' }).attendance);
+  assert.ok(validateReply({ name: 'Aina Ferrer', attendance: 'yes', bus: 'unknown' }).bus);
 });
 
-test('Les tres pàgines utilitzen valencià, recursos locals i bloquegen enviaments', async () => {
+test('L’enviament necessita recepció explícita i cancel·la el transport en esgotar el termini', async () => {
+  const replies = [{ name: 'Aina Ferrer', attendance: 'no', bus: '', dietary: '' }];
+  assert.deepEqual(await sendRepliesWithTimeout(replies, {
+    sendReplies: async payload => { assert.deepEqual(payload, replies); return { received: true }; },
+  }), { received: true });
+  let transportSignal;
+  let acknowledge;
+  await assert.rejects(sendRepliesWithTimeout(replies, {
+    timeoutMs: 15,
+    sendReplies: (_, { signal }) => {
+      transportSignal = signal;
+      return new Promise(resolve => { acknowledge = resolve; });
+    },
+  }), /Temps de recepció esgotat/);
+  assert.equal(transportSignal.aborted, true);
+  acknowledge({ received: true });
+  await assert.rejects(sendRepliesWithTimeout(replies, {
+    timeoutMs: 15, sendReplies: async () => ({ received: false }),
+  }), /Temps de recepció esgotat/);
+  await assert.rejects(sendRepliesWithTimeout(replies, {
+    sendReplies: async () => { throw new Error('Error de transport'); },
+  }), /Error de transport/);
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(simulateSendReplies(replies, { signal: controller.signal }), /cancel·lat/);
+});
+
+test('La landing utilitza valencià i recursos locals; les rutes antigues redirigixen', async () => {
   for (const filename of ['index.html', 'detalls.html', 'historia.html']) {
     const html = await readFile(resolve(root, filename), 'utf8');
     assert.match(html, /lang="ca-valencia"/);
-    assert.match(html, /connect-src 'none'/);
-    assert.match(html, /form-action 'none'/);
+    if (filename === 'index.html') {
+      assert.match(html, /connect-src 'none'/);
+      assert.match(html, /form-action 'none'/);
+    } else {
+      assert.match(html, /http-equiv="refresh" content="0; url=index\.html/);
+    }
     assert.doesNotMatch(html, /<iframe|<script[^>]+https?:|Designed by Canva|Terms & Support|Privacy policy/i);
     for (const [, url] of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
       assert.ok(!url.startsWith('/'), `${filename}: ruta absoluta ${url}`);
-      await access(resolve(root, url));
+      await access(resolve(root, url.split('#')[0]));
     }
   }
 });
@@ -37,7 +69,8 @@ test('Totes les fotografies i les màscares tenen el recurs corresponent', async
   const css = await readFile(cssFile, 'utf8');
   for (const [, url] of css.matchAll(/url\("([^"]+)"\)/g)) await access(resolve(dirname(cssFile), url));
   assert.match(css, /background:var\(--white\)/);
-  assert.doesNotMatch(css, /#a80605|#f88080/i);
+  assert.doesNotMatch(css, /#a80605|#f88080|#05a857|#07e978|#3bf99a|#7cfbbc|#befddd/i);
+  for (const color of ['#636b2f', '#bac095', '#d4de95', '#3d4127']) assert.ok(css.includes(color));
 });
 
 test('El codi de l’RSVP no inclou transport ni emmagatzematge', async () => {
