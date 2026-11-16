@@ -11,7 +11,6 @@ export function setupMotion() {
     { element: hero.querySelector('.hero-opening'), phase: 'message', letters: 'typewriter' },
   ];
   const animations = new Set();
-  const restorations = new Set();
   const track = animation => {
     animations.add(animation);
     return animation.finished.then(() => {}, () => {}).finally(() => animations.delete(animation));
@@ -45,39 +44,12 @@ export function setupMotion() {
     stage.setAttribute('aria-hidden', 'true');
     element.replaceChildren(source, stage);
     element.classList.add('name-animating');
-    let restored = false;
-    const restore = () => {
-      if (restored) return;
-      restored = true;
-      element.replaceChildren(document.createTextNode(text));
-      element.classList.remove('name-animating');
-      restorations.delete(restore);
-    };
-    restorations.add(restore);
-    const promises = [];
+    let nameResizeObserver;
     let lastAnimation;
     let offset = 0;
     let delay = 0;
     try {
-      const box = element.getBoundingClientRect();
-      const ink = source.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      const bleed = parseFloat(style.fontSize);
-      const lineHeight = parseFloat(style.lineHeight);
-      const stageWidth = box.width + 2 * bleed;
-      const left = ink.left - box.left + bleed - bleed * .15;
-      const right = ink.right - box.left + bleed + bleed * .15;
-      const start = (1.4 * stageWidth - left) / (1.5 * stageWidth) * 100;
-      const end = (1.1 * stageWidth - right) / (1.5 * stageWidth) * 100;
-      const curtainDuration = characters.reduce((total, character) => total + (/\s/.test(character) ? 45 : 80), 0) + 220;
-      promises.push(track(stage.animate([
-        { maskPosition: `${start}% 0` }, { maskPosition: `${end}% 0` },
-      ], { duration: curtainDuration, easing: 'linear', fill: 'backwards' })));
-      const range = document.createRange();
-      characters.forEach(character => {
-        range.setStart(source.firstChild, offset);
-        range.setEnd(source.firstChild, offset + character.length);
-        const bounds = range.getBoundingClientRect();
+      const entries = characters.map(character => {
         const letter = document.createElement('span');
         letter.className = 'name-letter';
         const glyph = document.createElement('span');
@@ -85,22 +57,55 @@ export function setupMotion() {
         glyph.textContent = character;
         letter.append(glyph);
         stage.append(letter);
-        // La màscara i cada lletra tenen un em extra per costat. Els dos
-        // marges es compensen: el text conserva la posició i l'espaiat originals.
-        letter.style.left = `${bounds.left - box.left}px`;
-        letter.style.width = `${bounds.width}px`;
-        letter.style.transformOrigin = `${bleed + bounds.width / 2}px ${bleed + lineHeight * .65}px`;
+        const entry = { character, offset, letter };
+        offset += character.length;
+        return entry;
+      });
+      const layout = () => {
+        const box = element.getBoundingClientRect();
+        const ink = source.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const bleed = parseFloat(style.fontSize);
+        const lineHeight = parseFloat(style.lineHeight);
+        const stageWidth = box.width + 2 * bleed;
+        const left = ink.left - box.left + bleed - bleed * .15;
+        const right = ink.right - box.left + bleed + bleed * .15;
+        const start = (1.4 * stageWidth - left) / (1.5 * stageWidth) * 100;
+        const end = (1.1 * stageWidth - right) / (1.5 * stageWidth) * 100;
+        const range = document.createRange();
+        entries.forEach(({ character, offset, letter }) => {
+          range.setStart(source.firstChild, offset);
+          range.setEnd(source.firstChild, offset + character.length);
+          const bounds = range.getBoundingClientRect();
+          letter.style.left = `${bounds.left - box.left}px`;
+          letter.style.width = `${bounds.width}px`;
+          letter.style.transformOrigin = `${bleed + bounds.width / 2}px ${bleed + lineHeight * .65}px`;
+        });
+        // La posició final de la màscara és també el valor base: acabar
+        // l'animació no canvia el dibuix ni la composició del nom.
+        stage.style.maskPosition = `${end}% 0`;
+        return { start, end };
+      };
+      const { start, end } = layout();
+      nameResizeObserver = new ResizeObserver(layout);
+      nameResizeObserver.observe(element);
+      window.addEventListener('pagehide', event => { if (!event.persisted) nameResizeObserver.disconnect(); });
+      const curtainDuration = characters.reduce((total, character) => total + (/\s/.test(character) ? 45 : 80), 0) + 220;
+      track(stage.animate([
+        { maskPosition: `${start}% 0` }, { maskPosition: `${end}% 0` },
+      ], { duration: curtainDuration, easing: 'linear', fill: 'backwards' }));
+      entries.forEach(({ character, letter }) => {
         lastAnimation = letter.animate([
           { opacity: 0, transform: 'translateY(12px) scale(.55)', offset: 0 },
           { opacity: 1, transform: 'translateY(-3px) scale(1.07)', offset: .6 },
           { opacity: 1, transform: 'translateY(1px) scale(.985)', offset: .82 },
           { opacity: 1, transform: 'translateY(0) scale(1)', offset: 1 },
         ], { duration: 520, delay, easing: 'cubic-bezier(.22,.7,.3,1)', fill: 'backwards' });
-        promises.push(track(lastAnimation));
+        track(lastAnimation);
         delay += /\s/.test(character) ? 45 : 80;
-        offset += character.length;
       });
-      Promise.all(promises).then(restore, restore);
+      // Les capes es queden pintades en la mateixa posició quan acaben.
+      // Substituir-les per text pla tornaria a canviar l'espaiat de la font.
       if (!lastAnimation) return;
       const timing = lastAnimation.effect.getTiming();
       const handoff = timing.delay + timing.duration * .78;
@@ -112,7 +117,12 @@ export function setupMotion() {
         };
         check();
       });
-    } catch (error) { restore(); throw error; }
+    } catch (error) {
+      nameResizeObserver?.disconnect();
+      element.replaceChildren(document.createTextNode(text));
+      element.classList.remove('name-animating');
+      throw error;
+    }
   };
   const typewrite = async element => {
     element.classList.remove('reveal-pending');
@@ -121,35 +131,25 @@ export function setupMotion() {
       ? [...new Intl.Segmenter('ca', { granularity: 'grapheme' }).segment(text)].map(part => part.segment)
       : [...text];
     const source = document.createElement('span');
-    source.className = 'sr-only';
+    source.className = 'type-source sr-only';
     source.textContent = text;
     const letters = document.createElement('span');
     letters.className = 'type-letters';
     letters.setAttribute('aria-hidden', 'true');
     element.replaceChildren(source, letters);
-    let restored = false;
-    const restore = () => {
-      if (restored) return;
-      restored = true;
-      element.replaceChildren(document.createTextNode(text));
-      restorations.delete(restore);
-    };
-    restorations.add(restore);
     const promises = [];
     let delay = 0;
-    try {
-      characters.forEach(character => {
-        const letter = document.createElement('span');
-        letter.className = 'type-letter';
-        letter.textContent = character;
-        letters.append(letter);
-        promises.push(track(letter.animate([{ opacity: 0 }, { opacity: 1 }], {
-          duration: 1, delay, easing: 'steps(1, end)', fill: 'backwards',
-        })));
-        delay += /[.!?]/.test(character) ? 120 : /[,;:]/.test(character) ? 50 : 18;
-      });
-      await Promise.all(promises);
-    } finally { restore(); }
+    characters.forEach(character => {
+      const letter = document.createElement('span');
+      letter.className = 'type-letter';
+      letter.textContent = character;
+      letters.append(letter);
+      promises.push(track(letter.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 1, delay, easing: 'steps(1, end)', fill: 'backwards',
+      })));
+      delay += /[.!?]/.test(character) ? 120 : /[,;:]/.test(character) ? 50 : 18;
+    });
+    await Promise.all(promises);
   };
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => { if (entry.isIntersecting) reveal(entry.target); });
@@ -169,7 +169,6 @@ export function setupMotion() {
     hero.dataset.intro = 'complete';
     targets.forEach(element => reveal(element, true));
     animations.forEach(animation => animation.cancel());
-    [...restorations].forEach(restore => restore());
     observer.disconnect();
   };
   document.addEventListener('focusin', event => {

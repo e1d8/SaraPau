@@ -91,7 +91,7 @@ strong{font-weight:400}
 .name-animating{position:relative}
 .name-source{opacity:0}
 .name-stage{position:absolute;inset:-1em;pointer-events:none;user-select:none;overflow:visible;mask-image:linear-gradient(to right,#000 44%,transparent 56%);mask-size:250% 100%;mask-position:0% 0;mask-repeat:no-repeat}
-.name-letter{position:absolute;top:0;box-sizing:content-box;padding:1em;text-align:left;white-space:pre;overflow:visible}
+.name-letter{position:absolute;top:0;box-sizing:content-box;padding:1em;text-align:left;white-space:pre;overflow:visible;transform:translateY(0) scale(1)}
 .name-glyph{display:block}
 .type-letter{display:inline}
 .hero-date{font-size:var(--text-medium);font-weight:400;color:var(--dark);line-height:1.12;margin-top:16px}

@@ -128,15 +128,15 @@ test('La benvinguda mostra noms, data i missatge abans de revelar la resta', asy
   assert.equal(await page.locator('.home-hero > .art').evaluate(el => el.classList.contains('reveal-pending')), true);
   const messageHeight = await page.locator('.hero-opening').evaluate(el => el.getBoundingClientRect().height);
   await phase('message');
-  assert.equal(await title.textContent(), 'Sara i Pau');
-  assert.equal(await page.locator('#hero-title .name-letter').count(), 0);
+  assert.equal(await title.locator('.name-source').textContent(), 'Sara i Pau');
+  assert.equal(await title.locator('.name-glyph').allTextContents().then(characters => characters.join('')), 'Sara i Pau');
   assert.equal(await page.locator('.hero-date').evaluate(el => getComputedStyle(el).opacity), '1');
   assert.ok(await page.locator('.type-letter').count() > 100);
   assert.ok(await page.locator('.type-letter').evaluateAll(letters => letters.some(el => getComputedStyle(el).opacity === '0')));
   assert.equal(await page.locator('.hero-opening').evaluate(el => el.getBoundingClientRect().height), messageHeight);
   assert.equal(await page.locator('.home-hero > .art').evaluate(el => el.classList.contains('reveal-pending')), true);
   await phase('complete');
-  assert.equal(await page.locator('.type-letter').count(), 0);
+  assert.equal(await page.locator('.type-letter').evaluateAll(letters => letters.every(el => getComputedStyle(el).opacity === '1')), true);
   assert.equal(await page.locator('.hero-opening').evaluate(el => getComputedStyle(el).opacity), '1');
   await page.waitForFunction(() => !document.querySelector('.home-hero > .art').classList.contains('reveal-pending'));
   await page.close();
@@ -182,9 +182,74 @@ test('La màscara ampliada conté els traços reals de cada lletra durant el reb
     assert.equal(ink.every(letter => Math.abs(letter.scale - 1.07) < .00001), true);
     if (process.env.SCREENSHOTS_DIR) await page.locator('.hero-copy').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, `name-bounce-${width}.png`) });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.waitForFunction(() => document.querySelectorAll('.name-stage,.name-letter').length === 0);
-    assert.equal(await page.locator('#hero-title').textContent(), 'Sara i Pau');
+    await page.waitForFunction(() => !document.documentElement.classList.contains('intro-locked') && !document.getAnimations().some(animation => animation.playState === 'running'));
+    assert.equal(await page.getByRole('heading', { name: 'Sara i Pau', exact: true }).count(), 1);
     assert.equal(await page.evaluate(() => document.documentElement.classList.contains('intro-locked')), false);
+    await page.close();
+  }
+});
+
+test('Els noms i el missatge conserven les lletres i la posició en acabar i en redimensionar', async () => {
+  for (const width of [320, 390, 820, 1366]) {
+    const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'no-preference' });
+    await page.goto(`${origin}${prefix}/index.html`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => document.querySelectorAll('.name-glyph').length > 0);
+    await page.evaluate(() => {
+      window.introRects = selector => [...document.querySelectorAll(selector)].filter(el => el.textContent.trim()).map(el => {
+        const range = document.createRange(); range.selectNodeContents(el);
+        const rect = range.getBoundingClientRect();
+        return { text: el.textContent, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      });
+      window.nameNodes = [...document.querySelectorAll('.name-glyph')];
+      window.nameAnimations = document.getAnimations().filter(animation => animation.effect.target?.matches('.name-letter,.name-stage'));
+      for (const animation of window.nameAnimations) {
+        const { delay, duration } = animation.effect.getTiming();
+        if (animation.effect.target.matches('.name-letter')) animation.effect.setKeyframes([
+          { opacity: 1, transform: 'translateY(0) scale(1)' }, { opacity: 1, transform: 'translateY(0) scale(1)' },
+        ]);
+        animation.pause(); animation.currentTime = delay + duration - .001;
+      }
+      window.nameBefore = window.introRects('.name-glyph');
+    });
+    await page.evaluate(() => window.nameAnimations.forEach(animation => animation.play()));
+    await page.waitForFunction(() => document.querySelectorAll('.type-letter').length > 0);
+    await page.evaluate(() => {
+      window.messageNodes = [...document.querySelectorAll('.type-letter')];
+      window.messageAnimations = document.getAnimations().filter(animation => animation.effect.target?.matches('.type-letter'));
+      for (const animation of window.messageAnimations) {
+        const { delay, duration } = animation.effect.getTiming();
+        animation.effect.setKeyframes([{ opacity: 1 }, { opacity: 1 }]);
+        animation.pause(); animation.currentTime = delay + duration - .001;
+      }
+      window.messageBefore = window.introRects('.type-letter');
+    });
+    if (process.env.SCREENSHOTS_DIR) await page.locator('.hero-copy').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, `intro-before-${width}.png`) });
+    await page.evaluate(() => window.messageAnimations.forEach(animation => animation.play()));
+    await page.waitForFunction(() => document.querySelector('.home-hero').dataset.intro === 'complete');
+    const stable = await page.evaluate(() => {
+      const unchanged = (before, after) => before.length === after.length && before.every((rect, index) =>
+        ['x', 'y', 'width', 'height'].every(key => Math.abs(rect[key] - after[index][key]) < .05));
+      return {
+        sameNodes: [...window.nameNodes, ...window.messageNodes].every(node => node.isConnected),
+        names: unchanged(window.nameBefore, window.introRects('.name-glyph')),
+        message: unchanged(window.messageBefore, window.introRects('.type-letter')),
+      };
+    });
+    assert.deepEqual(stable, { sameNodes: true, names: true, message: true }, `${width}px: salt en acabar l'animació`);
+    if (process.env.SCREENSHOTS_DIR) await page.locator('.hero-copy').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, `intro-after-${width}.png`) });
+    await page.setViewportSize({ width: width < 760 ? 1366 : 320, height: 900 });
+    await page.waitForFunction(() => {
+      const source = document.querySelector('.name-source').firstChild;
+      let offset = 0;
+      return [...document.querySelectorAll('.name-glyph')].every(glyph => {
+        const expected = document.createRange();
+        expected.setStart(source, offset); expected.setEnd(source, offset + glyph.textContent.length);
+        offset += glyph.textContent.length;
+        const actual = document.createRange(); actual.selectNodeContents(glyph);
+        return Math.abs(expected.getBoundingClientRect().x - actual.getBoundingClientRect().x) < .05;
+      });
+    });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.close();
   }
 });
@@ -194,9 +259,9 @@ test('Reduir el moviment durant l’escriptura mostra tot el text i cancel·la l
   await load(page);
   await page.waitForFunction(() => document.querySelector('.home-hero').dataset.intro === 'message');
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForFunction(() => document.querySelectorAll('.name-letter,.type-letter,.reveal-pending').length === 0);
-  assert.equal(await page.locator('#hero-title').textContent(), 'Sara i Pau');
-  assert.equal(await page.locator('.hero-opening').textContent(), 'Hi ha llocs, persones i moments que sempre formaran part de la nostra història. Tornem on tot va començar per a celebrar el nostre amor amb vosaltres.');
+  await page.waitForFunction(() => document.querySelectorAll('.reveal-pending').length === 0);
+  assert.equal(await page.getByRole('heading', { name: 'Sara i Pau', exact: true }).count(), 1);
+  assert.equal(await page.locator('.type-source').textContent(), 'Hi ha llocs, persones i moments que sempre formaran part de la nostra història. Tornem on tot va començar per a celebrar el nostre amor amb vosaltres.');
   assert.equal(await page.evaluate(() => document.getAnimations().some(animation => animation.playState === 'running')), false);
   await page.close();
 });
