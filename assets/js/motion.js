@@ -6,7 +6,7 @@ export function setupMotion() {
   const targets = [...document.querySelectorAll('.hero-copy > *, .home-hero > .art, .timeline > h2, .timeline-item, .rsvp-panel > .form-heading, .rsvp-description, .guest-grid, .celebration > .banquet-divider, .closing-message, .bank-account, .site-footer > *')];
   const hero = document.querySelector('.home-hero');
   const introduction = [
-    { element: hero.querySelector('h1'), phase: 'names', letters: 'name' },
+    { element: hero.querySelector('h1'), phase: 'names', signature: true },
     { element: hero.querySelector('.hero-date'), phase: 'date', duration: 500 },
     { element: hero.querySelector('.hero-opening'), phase: 'message', letters: 'typewriter' },
   ];
@@ -31,20 +31,20 @@ export function setupMotion() {
     ], { duration, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'backwards' });
     return track(animation);
   };
-  const revealLetters = async (element, kind) => {
+  const revealSignature = async element => {
     element.classList.remove('reveal-pending');
     const text = element.textContent;
     const characters = typeof Intl.Segmenter === 'function'
       ? [...new Intl.Segmenter('ca', { granularity: 'grapheme' }).segment(text)].map(part => part.segment)
       : [...text];
     const source = document.createElement('span');
-    source.className = kind === 'name' ? 'name-source' : 'sr-only';
+    source.className = 'name-source';
     source.textContent = text;
-    const letters = document.createElement('span');
-    letters.className = kind === 'name' ? 'name-letters' : 'type-letters';
-    letters.setAttribute('aria-hidden', 'true');
-    element.replaceChildren(source, letters);
-    element.classList.toggle('name-animating', kind === 'name');
+    const stage = document.createElement('span');
+    stage.className = 'name-stage';
+    stage.setAttribute('aria-hidden', 'true');
+    element.replaceChildren(source, stage);
+    element.classList.add('name-animating');
     let restored = false;
     const restore = () => {
       if (restored) return;
@@ -55,71 +55,101 @@ export function setupMotion() {
     };
     restorations.add(restore);
     const promises = [];
-    let delay = 0;
+    let lastAnimation;
     let offset = 0;
-    const box = element.getBoundingClientRect();
-    const range = document.createRange();
-    let lastNameAnimation;
-    let settling = false;
+    let delay = 0;
     try {
-      if (kind === 'name') {
-        const duration = characters.reduce((total, character) => total + (/\s/.test(character) ? 45 : 80), 0) + 220;
-        const ink = source.getBoundingClientRect();
-        const padding = parseFloat(getComputedStyle(element).fontSize) * .15;
-        const left = Math.max(0, ink.left - box.left - padding);
-        const right = Math.min(box.width, ink.right - box.left + padding);
-        // La cortina recorre els noms, en lloc de gastar el recorregut en els
-        // marges buits del títol. La vora és suau i no dividix les lletres.
-        const start = (1.4 * box.width - left) / (1.5 * box.width) * 100;
-        const end = (1.1 * box.width - right) / (1.5 * box.width) * 100;
-        promises.push(track(letters.animate([
-          { maskPosition: `${start}% 0` }, { maskPosition: `${end}% 0` },
-        ], { duration, easing: 'linear', fill: 'backwards' })));
-      }
+      const box = element.getBoundingClientRect();
+      const ink = source.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const bleed = parseFloat(style.fontSize);
+      const lineHeight = parseFloat(style.lineHeight);
+      const stageWidth = box.width + 2 * bleed;
+      const left = ink.left - box.left + bleed - bleed * .15;
+      const right = ink.right - box.left + bleed + bleed * .15;
+      const start = (1.4 * stageWidth - left) / (1.5 * stageWidth) * 100;
+      const end = (1.1 * stageWidth - right) / (1.5 * stageWidth) * 100;
+      const curtainDuration = characters.reduce((total, character) => total + (/\s/.test(character) ? 45 : 80), 0) + 220;
+      promises.push(track(stage.animate([
+        { maskPosition: `${start}% 0` }, { maskPosition: `${end}% 0` },
+      ], { duration: curtainDuration, easing: 'linear', fill: 'backwards' })));
+      const range = document.createRange();
       characters.forEach(character => {
+        range.setStart(source.firstChild, offset);
+        range.setEnd(source.firstChild, offset + character.length);
+        const bounds = range.getBoundingClientRect();
         const letter = document.createElement('span');
-        letter.className = kind === 'name' ? 'name-letter' : 'type-letter';
-        letter.textContent = character;
-        letters.append(letter);
-        if (kind === 'name') {
-          // La posició prové del text cal·ligràfic complet, però cada capa
-          // dibuixa una lletra sencera. Els ornaments poden sobrepassar la
-          // seua amplària sense quedar tallats per cap màscara rectangular.
-          range.setStart(source.firstChild, offset);
-          range.setEnd(source.firstChild, offset + character.length);
-          const bounds = range.getBoundingClientRect();
-          letter.style.left = `${bounds.left - box.left}px`;
-          lastNameAnimation = letter.animate([
-            { opacity: 0, transform: 'translateY(12px) scale(.55)', offset: 0 },
-            { opacity: 1, transform: 'translateY(-3px) scale(1.07)', offset: .6 },
-            { opacity: 1, transform: 'translateY(1px) scale(.985)', offset: .82 },
-            { opacity: 1, transform: 'translateY(0) scale(1)', offset: 1 },
-          ], { duration: 520, delay, easing: 'cubic-bezier(.22,.7,.3,1)', fill: 'backwards' });
-          promises.push(track(lastNameAnimation));
-          delay += /\s/.test(character) ? 45 : 80;
-        } else {
-          promises.push(track(letter.animate([{ opacity: 0 }, { opacity: 1 }], {
-            duration: 1, delay, easing: 'steps(1, end)', fill: 'backwards',
-          })));
-          delay += /[.!?]/.test(character) ? 120 : /[,;:]/.test(character) ? 50 : 18;
-        }
+        letter.className = 'name-letter';
+        const glyph = document.createElement('span');
+        glyph.className = 'name-glyph';
+        glyph.textContent = character;
+        letter.append(glyph);
+        stage.append(letter);
+        // La màscara i cada lletra tenen un em extra per costat. Els dos
+        // marges es compensen: el text conserva la posició i l'espaiat originals.
+        letter.style.left = `${bounds.left - box.left}px`;
+        letter.style.width = `${bounds.width}px`;
+        letter.style.transformOrigin = `${bleed + bounds.width / 2}px ${bleed + lineHeight * .65}px`;
+        lastAnimation = letter.animate([
+          { opacity: 0, transform: 'translateY(12px) scale(.55)', offset: 0 },
+          { opacity: 1, transform: 'translateY(-3px) scale(1.07)', offset: .6 },
+          { opacity: 1, transform: 'translateY(1px) scale(.985)', offset: .82 },
+          { opacity: 1, transform: 'translateY(0) scale(1)', offset: 1 },
+        ], { duration: 520, delay, easing: 'cubic-bezier(.22,.7,.3,1)', fill: 'backwards' });
+        promises.push(track(lastAnimation));
+        delay += /\s/.test(character) ? 45 : 80;
         offset += character.length;
       });
-      if (lastNameAnimation) {
-        // La data entra durant l'últim assentament del rebot, sense cap pausa.
-        Promise.all(promises).then(restore, restore);
-        settling = true;
-        const timing = lastNameAnimation.effect.getTiming();
-        const handoff = timing.delay + timing.duration * .78;
-        await new Promise(resolve => {
-          const check = () => {
-            if (stopped || lastNameAnimation.playState === 'finished' || lastNameAnimation.currentTime >= handoff) resolve();
-            else requestAnimationFrame(check);
-          };
-          check();
-        });
-      } else await Promise.all(promises);
-    } finally { if (!settling) restore(); }
+      Promise.all(promises).then(restore, restore);
+      if (!lastAnimation) return;
+      const timing = lastAnimation.effect.getTiming();
+      const handoff = timing.delay + timing.duration * .78;
+      // La data entra mentre s'assenta l'últim rebot.
+      await new Promise(resolve => {
+        const check = () => {
+          if (stopped || lastAnimation.playState === 'finished' || lastAnimation.currentTime >= handoff) resolve();
+          else requestAnimationFrame(check);
+        };
+        check();
+      });
+    } catch (error) { restore(); throw error; }
+  };
+  const typewrite = async element => {
+    element.classList.remove('reveal-pending');
+    const text = element.textContent;
+    const characters = typeof Intl.Segmenter === 'function'
+      ? [...new Intl.Segmenter('ca', { granularity: 'grapheme' }).segment(text)].map(part => part.segment)
+      : [...text];
+    const source = document.createElement('span');
+    source.className = 'sr-only';
+    source.textContent = text;
+    const letters = document.createElement('span');
+    letters.className = 'type-letters';
+    letters.setAttribute('aria-hidden', 'true');
+    element.replaceChildren(source, letters);
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      element.replaceChildren(document.createTextNode(text));
+      restorations.delete(restore);
+    };
+    restorations.add(restore);
+    const promises = [];
+    let delay = 0;
+    try {
+      characters.forEach(character => {
+        const letter = document.createElement('span');
+        letter.className = 'type-letter';
+        letter.textContent = character;
+        letters.append(letter);
+        promises.push(track(letter.animate([{ opacity: 0 }, { opacity: 1 }], {
+          duration: 1, delay, easing: 'steps(1, end)', fill: 'backwards',
+        })));
+        delay += /[.!?]/.test(character) ? 120 : /[,;:]/.test(character) ? 50 : 18;
+      });
+      await Promise.all(promises);
+    } finally { restore(); }
   };
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => { if (entry.isIntersecting) reveal(entry.target); });
@@ -160,7 +190,8 @@ export function setupMotion() {
     for (const step of introduction) {
       if (stopped) return;
       hero.dataset.intro = step.phase;
-      if (step.letters) await revealLetters(step.element, step.letters);
+      if (step.signature) await revealSignature(step.element);
+      else if (step.letters) await typewrite(step.element);
       else await reveal(step.element, false, step);
     }
     if (stopped) return;

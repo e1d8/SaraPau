@@ -84,14 +84,15 @@ strong{font-weight:400}
 .art-cupid{--illustration:url("../illustrations/cupid.svg");aspect-ratio:1}
 .art-champagne{--illustration:url("../illustrations/champagne.svg");aspect-ratio:1261/2000}
 
-.home-hero{overflow:hidden;text-align:center;padding-top:96px}
+.home-hero{overflow:visible;text-align:center;padding-top:96px}
 .hero-copy{padding-inline:24px}
 .hero-opening{max-width:830px;margin:28px auto 0;font-size:18px;font-weight:300;line-height:1.7;text-wrap:pretty}
 .home-hero h1{font-size:114.7px;margin:0;line-height:1.2}
 .name-animating{position:relative}
 .name-source{opacity:0}
-.name-letters{position:absolute;inset:0;pointer-events:none;user-select:none;mask-image:linear-gradient(to right,#000 44%,transparent 56%);mask-size:250% 100%;mask-position:0% 0;mask-repeat:no-repeat}
-.name-letter{position:absolute;top:0;white-space:pre;transform-origin:50% 65%}
+.name-stage{position:absolute;inset:-1em;pointer-events:none;user-select:none;overflow:visible;mask-image:linear-gradient(to right,#000 44%,transparent 56%);mask-size:250% 100%;mask-position:0% 0;mask-repeat:no-repeat}
+.name-letter{position:absolute;top:0;box-sizing:content-box;padding:1em;text-align:left;white-space:pre;overflow:visible}
+.name-glyph{display:block}
 .type-letter{display:inline}
 .hero-date{font-size:var(--text-medium);font-weight:400;color:var(--dark);line-height:1.12;margin-top:16px}
 .home-hero .art{width:83.2%;margin:32px auto 0}

@@ -113,20 +113,22 @@ test('La benvinguda mostra noms, data i missatge abans de revelar la resta', asy
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'no-preference' });
   await load(page);
   const phase = name => page.waitForFunction(value => document.querySelector('.home-hero').dataset.intro === value, name);
-  assert.ok(await page.locator('#hero-title .name-letter').count() > 1);
-  assert.equal(await page.locator('#hero-title .name-letter').evaluateAll(letters => letters.map(el => el.textContent).join('')), 'Sara i Pau');
-  assert.equal(await page.locator('#hero-title .name-letter').evaluateAll(letters => letters.every(el => getComputedStyle(el).clipPath === 'none')), true);
+  const title = page.locator('#hero-title');
+  assert.equal(await title.locator('.name-source').textContent(), 'Sara i Pau');
+  assert.equal(await title.locator('.name-glyph').allTextContents().then(characters => characters.join('')), 'Sara i Pau');
+  assert.equal(await title.evaluate(el => [el, el.parentElement, el.closest('.home-hero')].every(node => {
+    const style = getComputedStyle(node);
+    return style.clipPath === 'none' && style.maskImage === 'none' && style.overflow === 'visible';
+  })), true, 'El títol i els seus contenidors deixen espai als ornaments');
   assert.equal(await page.getByRole('heading', { name: 'Sara i Pau', exact: true }).count(), 1);
-  const letterStates = await page.locator('#hero-title .name-letter').evaluateAll(letters => letters.map(letter => getComputedStyle(letter).opacity));
-  assert.ok(letterStates.includes('0') && letterStates.some(value => Number(value) > 0));
-  assert.match(await page.locator('.name-letters').evaluate(el => getComputedStyle(el).maskImage), /linear-gradient/);
+  assert.equal(await title.locator('.name-letter').evaluateAll(letters => letters.some(el => el.getAnimations().some(animation => animation.playState === 'running'))), true);
   await phase('date');
-  assert.ok(await page.locator('#hero-title .name-letter').count() > 0, 'La data entra mentre acaba el rebot dels noms');
   assert.equal(await page.locator('#hero-title').evaluate(el => getComputedStyle(el).opacity), '1');
   assert.equal(await page.locator('.hero-opening').evaluate(el => el.classList.contains('reveal-pending')), true);
   assert.equal(await page.locator('.home-hero > .art').evaluate(el => el.classList.contains('reveal-pending')), true);
   const messageHeight = await page.locator('.hero-opening').evaluate(el => el.getBoundingClientRect().height);
   await phase('message');
+  assert.equal(await title.textContent(), 'Sara i Pau');
   assert.equal(await page.locator('#hero-title .name-letter').count(), 0);
   assert.equal(await page.locator('.hero-date').evaluate(el => getComputedStyle(el).opacity), '1');
   assert.ok(await page.locator('.type-letter').count() > 100);
@@ -138,6 +140,53 @@ test('La benvinguda mostra noms, data i missatge abans de revelar la resta', asy
   assert.equal(await page.locator('.hero-opening').evaluate(el => getComputedStyle(el).opacity), '1');
   await page.waitForFunction(() => !document.querySelector('.home-hero > .art').classList.contains('reveal-pending'));
   await page.close();
+});
+
+test('La màscara ampliada conté els traços reals de cada lletra durant el rebot', async () => {
+  for (const width of [320, 390, 820, 1366]) {
+    const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'no-preference' });
+    await page.goto(`${origin}${prefix}/index.html`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => document.querySelectorAll('.name-letter').length > 0);
+    const ink = await page.evaluate(() => {
+      for (const animation of document.getAnimations()) {
+        const { delay, duration } = animation.effect.getTiming();
+        if (animation.effect.target?.matches('.name-letter')) {
+          // Mostregem exactament el pic del keyframe, sense la corba temporal.
+          animation.effect.updateTiming({ easing: 'linear' });
+          animation.pause(); animation.currentTime = delay + duration * .6;
+        } else if (animation.effect.target?.matches('.name-stage')) {
+          animation.pause(); animation.currentTime = duration - 1;
+        }
+      }
+      const stage = document.querySelector('.name-stage').getBoundingClientRect();
+      const context = document.createElement('canvas').getContext('2d');
+      return [...document.querySelectorAll('.name-letter')].filter(el => el.textContent.trim()).map(letter => {
+        const style = getComputedStyle(letter);
+        context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const metrics = context.measureText(letter.textContent);
+        const baseline = (parseFloat(style.lineHeight) - metrics.fontBoundingBoxAscent - metrics.fontBoundingBoxDescent) / 2 + metrics.fontBoundingBoxAscent;
+        const [ox, oy] = style.transformOrigin.split(' ').map(parseFloat);
+        const matrix = new DOMMatrix(style.transform);
+        const left = parseFloat(style.paddingLeft) - metrics.actualBoundingBoxLeft;
+        const right = parseFloat(style.paddingLeft) + metrics.actualBoundingBoxRight;
+        const top = parseFloat(style.paddingTop) + baseline - metrics.actualBoundingBoxAscent;
+        const bottom = parseFloat(style.paddingTop) + baseline + metrics.actualBoundingBoxDescent;
+        const points = [[left, top], [right, top], [right, bottom], [left, bottom]].map(([x, y]) => {
+          const p = new DOMPoint(x - ox, y - oy).matrixTransform(matrix);
+          return { x: p.x + ox + parseFloat(style.left), y: p.y + oy + parseFloat(style.top) };
+        });
+        return { letter: letter.textContent, scale: matrix.a, fits: points.every(p => p.x > 0 && p.x < stage.width && p.y > 0 && p.y < stage.height) };
+      });
+    });
+    assert.equal(ink.every(letter => letter.fits), true, `${width}px: ${JSON.stringify(ink)}`);
+    assert.equal(ink.every(letter => Math.abs(letter.scale - 1.07) < .00001), true);
+    if (process.env.SCREENSHOTS_DIR) await page.locator('.hero-copy').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, `name-bounce-${width}.png`) });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.waitForFunction(() => document.querySelectorAll('.name-stage,.name-letter').length === 0);
+    assert.equal(await page.locator('#hero-title').textContent(), 'Sara i Pau');
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('intro-locked')), false);
+    await page.close();
+  }
 });
 
 test('Reduir el moviment durant l’escriptura mostra tot el text i cancel·la les lletres', async () => {
