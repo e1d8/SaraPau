@@ -18,7 +18,7 @@ Obri `http://127.0.0.1:4173`. No cal instal·lar dependències per a executar el
 
 ## Personalitzar
 
-Edita [assets/js/content.js](assets/js/content.js): noms, data, lloc, horaris i programa. El text inicial està en `home.opening`, la frase de comiat en `home.farewell` i el compte bancari en `bankAccount`. Els noms i telèfons de WhatsApp del peu provenen de `contacts`; els telèfons s’escriuen amb el prefix internacional, sense espais ni el signe `+`. La data actual continua sent de demostració.
+Edita [assets/js/content.js](assets/js/content.js): noms, data, lloc, horaris i programa. El text inicial està en `home.opening`, la frase de comiat en `home.farewell` i el compte bancari en `bankAccount`. Els noms i telèfons de WhatsApp del peu provenen de `contacts`; els telèfons s’escriuen amb el prefix internacional, sense espais ni el signe `+`. La data de la boda és el 9 d’octubre de 2027.
 
 Les fotografies estan en `assets/photos/` i les il·lustracions en `assets/illustrations/`. Els camps de contingut de les seccions anteriors s’han conservat per si es recuperen més avant; no es mostren en la landing actual. El títol i la descripció per als cercadors estan en `index.html`.
 
@@ -38,11 +38,11 @@ El formulari exigix nom i cognoms i una resposta a «Mos acompanyaràs?». Si la
 
 Els camps de text creixen automàticament d’una a quatre línies, també en editar una resposta o canviar l’amplària de la finestra. Si el text ocupa més espai, es pot desplaçar dins del camp. Les barres de desplaçament de la pàgina, les finestres i els camps compartixen colors i acabats. La barra principal se superposa al contingut sense fons ni espai reservat al lateral, de manera que la il·lustració també es veu per davall. Es pot arrossegar, i el desplaçament de roda, teclat i tàctil continua sent natiu. En obrir una finestra modal s’oculta la barra principal i s’utilitza la barra més fina del pop-up.
 
-«Enviar respostes» apareix després de guardar el primer invitat. En prémer-lo, una pantalla modal de càrrega bloqueja el web i s’envien totes les respostes a Google Apps Script. El web només mostra l’èxit quan rep una confirmació vàlida de guardat. Si no arriba en deu segons, mostra l’error i bloqueja nous intents fins a recarregar. Una execució ja iniciada en Google pot acabar guardant després del timeout: cal revisar el full abans de repetir un enviament.
+«Enviar respostes» apareix després de guardar el primer invitat. En prémer-lo, una pantalla modal de càrrega bloqueja el web i s’envien totes les respostes a Google Apps Script. El web només mostra l’èxit quan rep una confirmació vàlida de guardat. Si no arriba en trenta segons, mostra l’error i bloqueja nous intents fins a recarregar. Una execució ja iniciada en Google pot acabar guardant després del timeout: cal revisar el full abans de repetir un enviament.
 
 **Configuració completa:** [docs/google-sheets.md](docs/google-sheets.md). Inclou la creació del Google Sheet, l’autorització i publicació de l’Apps Script, el desplegable de bus i les fórmules de recompte. El codi per a Google està en [google-apps-script/Code.gs](google-apps-script/Code.gs) i el manifest en [google-apps-script/appsscript.json](google-apps-script/appsscript.json). `setupSpreadsheet` crea les dos pestanyes visibles, «Invitats» i «Recompte», amb una fila per invitat i exactament les cinc columnes demanades.
 
-En [assets/js/rsvp-config.js](assets/js/rsvp-config.js), copia l’URL pública acabada en `/exec` i deixa `mode: 'google'`. **L’URL encara està buida:** fins que es configure, els enviaments fallen i no es simula un èxit. `mode: 'demo'` activa explícitament la simulació local d’un segon per a provar la interfície sense transmetre dades.
+En [assets/js/rsvp-config.js](assets/js/rsvp-config.js), copia l’URL pública acabada en `/exec` i deixa `mode: 'google'`. L’URL ha de correspondre a una implementació activa; si falta o falla, no se simula un èxit. `mode: 'demo'` activa explícitament la simulació local d’un segon per a provar la interfície sense transmetre dades.
 
 Les respostes pendents viuen només en memòria al navegador. No hi ha cookies, `localStorage`, `sessionStorage` ni analítica del projecte. Amb el mode Google, les respostes enviades es guarden en el teu full privat; la seua persistència ja no depén de la pàgina oberta. No es carreguen recursos de Google fins a prémer el botó d’enviar. La política de contingut manté `connect-src 'none'` i permet únicament el POST i el marc de resposta dels dominis d’Apps Script.
 

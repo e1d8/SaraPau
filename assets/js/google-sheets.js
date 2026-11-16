@@ -1,10 +1,15 @@
 const RECEIPT_TYPE = 'sarapau:rsvp:receipt';
+export const RSVP_TIMEOUT_MS = 30000;
+
+export class RsvpError extends Error {
+  constructor(code, message) { super(message); this.name = 'RsvpError'; this.code = code; }
+}
 
 export function validateGoogleEndpoint(value) {
   let url;
-  try { url = new URL(value); } catch { throw new Error('Falta configurar l’URL d’Apps Script.'); }
+  try { url = new URL(value); } catch { throw new RsvpError('CONFIGURATION_ERROR', 'Falta configurar l’URL d’Apps Script.'); }
   if (url.origin !== 'https://script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url.pathname) || url.search || url.hash || url.username || url.password) {
-    throw new Error('L’URL ha de ser la publicació d’Apps Script acabada en /exec.');
+    throw new RsvpError('CONFIGURATION_ERROR', 'L’URL ha de ser la publicació d’Apps Script acabada en /exec.');
   }
   return url.href;
 }
@@ -33,11 +38,11 @@ function belongsToFrame(source, frame) {
 
 // POST a un iframe amb resposta explícita de Google. No necessita CORS,
 // scripts externs ni un fetch opac que poguera simular un èxit sense guardat.
-export function sendToGoogleSheets(replies, { endpoint, signal, requestId = crypto.randomUUID(), timeoutMs = 10000 } = {}) {
+export function sendToGoogleSheets(replies, { endpoint, signal, requestId = crypto.randomUUID(), timeoutMs = RSVP_TIMEOUT_MS } = {}) {
   return new Promise((resolve, reject) => {
     let action;
     try { action = validateGoogleEndpoint(endpoint); } catch (error) { reject(error); return; }
-    if (signal?.aborted) { reject(new Error('Enviament cancel·lat')); return; }
+    if (signal?.aborted) { reject(new RsvpError('ABORTED', 'Enviament cancel·lat')); return; }
     const guests = replies.map(reply => ({
       name: reply.name,
       attending: reply.attendance === 'yes',
@@ -73,18 +78,21 @@ export function sendToGoogleSheets(replies, { endpoint, signal, requestId = cryp
       frame.remove();
       if (error) reject(error); else resolve(receipt);
     };
-    const cancel = () => finish(new Error('Enviament cancel·lat'));
+    const cancel = () => finish(new RsvpError('ABORTED', 'Enviament cancel·lat'));
     const receive = event => {
       const data = event.data;
       if (!isGoogleReceiptOrigin(event.origin) || !belongsToFrame(event.source, frame) ||
           !data || data.type !== RECEIPT_TYPE || data.version !== 1 || data.requestId !== requestId) return;
-      if (data.received === false) finish(new Error('Google no ha confirmat el guardat.'));
+      if (data.received === false) {
+        const code = typeof data.error === 'string' && /^[A-Z_]{1,40}$/.test(data.error) ? data.error : 'GOOGLE_REJECTED';
+        finish(new RsvpError(code, 'Google no ha confirmat el guardat.'));
+      }
       else if (data.received === true && data.count === guests.length) finish(null, { received: true, count: data.count, requestId });
     };
-    const timer = setTimeout(() => finish(new Error('Temps de recepció esgotat')), timeoutMs);
+    const timer = setTimeout(() => finish(new RsvpError('TIMEOUT', 'Temps de recepció esgotat')), timeoutMs);
     window.addEventListener('message', receive);
     signal?.addEventListener('abort', cancel, { once: true });
-    frame.addEventListener('error', () => finish(new Error('No s’ha pogut contactar amb Google.')));
+    frame.addEventListener('error', () => finish(new RsvpError('FRAME_ERROR', 'No s’ha pogut contactar amb Google.')));
     try {
       document.body.append(frame, form);
       HTMLFormElement.prototype.submit.call(form);

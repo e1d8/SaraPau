@@ -73,6 +73,35 @@ function doGet() {
   return HtmlService.createHtmlOutput('<p>Servei RSVP de Sara i Pau actiu. Protocol 1.</p>');
 }
 
+// Diagnòstic manual des de l'editor: llig configuració i capçaleres,
+// sense afegir invitats ni mostrar-ne dades.
+function diagnoseSetup() {
+  const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (!id) fail_('NOT_CONFIGURED');
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active && active.getId() !== id) fail_('WRONG_SPREADSHEET');
+  const spreadsheet = SpreadsheetApp.openById(id);
+  const sheet = spreadsheet.getSheetByName(RSVP.guestsSheet);
+  if (!sheet) fail_('NOT_CONFIGURED');
+  checkHeaders_(sheet);
+  if (!spreadsheet.getSheetByName(RSVP.summarySheet)) fail_('SUMMARY_MISSING');
+  const lastDataRow = sheet.getLastRow();
+  const data = guestRows_(sheet);
+  const namedRows = data.map((row, index) => row[0] !== '' && row[0] !== null ? index + 2 : null).filter(row => row !== null);
+  const nextReservedRow = Number(PropertiesService.getScriptProperties().getProperty('RSVP_NEXT_ROW')) || 2;
+  const result = {
+    status: 'OK', allowedOrigins: RSVP.allowedOrigins, sheets: [RSVP.guestsSheet, RSVP.summarySheet],
+    destinationMatchesActiveSpreadsheet: active ? true : null,
+    lastDataRow: lastDataRow, nextReservedRow: nextReservedRow,
+    guestCount: namedRows.length, firstGuestRow: namedRows[0] || null,
+    lastGuestRow: namedRows.length ? namedRows[namedRows.length - 1] : null,
+    checkboxOnlyRows: data.filter(row => unusedGuestRow_(row) && row[1] === false).length,
+    nextWriteRow: findFreeRows_(sheet, PropertiesService.getScriptProperties(), 1, data),
+  };
+  console.info(JSON.stringify(result));
+  return result;
+}
+
 function doPost(event) {
   let payload;
   try {
@@ -85,6 +114,8 @@ function doPost(event) {
   } catch (error) {
     const code = error.code || 'SERVER_ERROR';
     console.error('RSVP: ' + code); // No registrar noms ni necessitats alimentàries.
+    const locations = String(error.stack || '').split('\n').filter(line => /^\s*at\s/.test(line)).join('\n');
+    if (locations) console.error('RSVP location:\n' + locations);
     if (payload && RSVP.allowedOrigins.indexOf(payload.replyTo) !== -1 && validRequestId_(payload.requestId)) {
       return receiptHtml_(payload.replyTo, payload.requestId, { received: false, count: 0, error: code });
     }
@@ -126,8 +157,7 @@ function saveGuests_(request) {
     if (record && (record.digest !== digest || record.count !== request.guests.length)) fail_('REQUEST_CONFLICT');
     if (record && record.state === 'done') return { received: true, count: record.count };
     if (!record) {
-      const next = Number(properties.getProperty('RSVP_NEXT_ROW')) || 2;
-      const row = Math.max(2, sheet.getLastRow() + 1, next);
+      const row = findFreeRows_(sheet, properties, request.guests.length);
       record = { row: row, count: request.guests.length, digest: digest, timestamp: Date.now(), state: 'pending' };
       // La reserva impedix que una altra petició ocupe les mateixes files
       // si una execució s'interromp entre l'escriptura i la confirmació.
@@ -140,8 +170,7 @@ function saveGuests_(request) {
     const rawRows = request.guests.map(guest => [guest.name, guest.attending, BUS[guest.bus], guest.dietary, new Date(record.timestamp)]);
     const range = sheet.getRange(record.row, 1, record.count, 5);
     const current = range.getValues();
-    const occupied = current.some(row => row.some(cell => cell !== '' && cell !== null));
-    if (occupied && !current.every((row, index) => row.every((cell, column) => {
+    if (!current.every((row, index) => unusedGuestRow_(row) || row.every((cell, column) => {
       const expected = rawRows[index][column];
       return cell === '' || cell === null || (column === 4 ? cell instanceof Date && cell.getTime() === expected.getTime() : cell === expected);
     }))) fail_('RESERVATION_CONFLICT');
@@ -157,6 +186,37 @@ function saveGuests_(request) {
 
 function checkHeaders_(sheet) {
   if (sheet.getLastColumn() > 5 || JSON.stringify(sheet.getRange(1, 1, 1, 5).getValues()[0]) !== JSON.stringify(HEADERS)) fail_('INVALID_HEADERS');
+}
+
+function guestRows_(sheet) {
+  const count = Math.max(0, sheet.getLastRow() - 1);
+  return count ? sheet.getRange(2, 1, count, 5).getValues() : [];
+}
+
+function unusedGuestRow_(row) {
+  const blank = value => value === '' || value === null;
+  // FALSE és l'estat d'una casella buida, no una resposta d'un invitat.
+  return blank(row[0]) && (blank(row[1]) || row[1] === false) &&
+    (blank(row[2]) || row[2] === BUS.none) && blank(row[3]) && blank(row[4]);
+}
+
+function findFreeRows_(sheet, properties, count, data) {
+  const occupied = new Set();
+  (data || guestRows_(sheet)).forEach((row, index) => { if (!unusedGuestRow_(row)) occupied.add(index + 2); });
+  // Protegir també els lots reservats però encara no escrits. El punter antic
+  // RSVP_NEXT_ROW pot apuntar al final de les caselles i no determina l'inici.
+  const saved = properties.getProperties();
+  Object.keys(saved).filter(key => key.indexOf('RSVP_') === 0 && key !== 'RSVP_NEXT_ROW').forEach(key => {
+    let record;
+    try { record = JSON.parse(saved[key]); } catch (error) { fail_('INVALID_RESERVATION'); }
+    if (!record || !Number.isInteger(record.row) || record.row < 2 || !Number.isInteger(record.count) || record.count < 1 || record.count > 10000) fail_('INVALID_RESERVATION');
+    for (let row = record.row; row < record.row + record.count; row++) occupied.add(row);
+  });
+  let free = 0;
+  for (let row = 2; ; row++) {
+    free = occupied.has(row) ? 0 : free + 1;
+    if (free === count) return row - count + 1;
+  }
 }
 
 function ensureRows_(sheet, lastRow) {

@@ -590,6 +590,7 @@ test('Sense endpoint no hi ha èxit simulat i un timeout retira el transport de 
   await saveGuest(page, { name: 'Sara Ferrer' });
   await page.getByRole('button', { name: 'Enviar respostes', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'error');
+  assert.equal(await page.locator('#rsvp').getAttribute('data-error'), 'CONFIGURATION_ERROR');
   assert.equal(await page.locator('iframe[name^="rsvp-"]').count(), 0);
   const endpoint = 'https://script.google.com/macros/s/test-timeout/exec';
   await page.route(endpoint, route => route.fulfill({ contentType: 'text/html', body: 'Sense confirmació' }));
@@ -605,7 +606,24 @@ test('Sense endpoint no hi ha èxit simulat i un timeout retira el transport de 
   await page.close();
 });
 
-test('Sense recepció en deu segons, es cancel·la l’enviament i no es pot tornar a enviar', async () => {
+test('El rebuig de Google conserva el codi de diagnòstic sense mostrar èxit', async () => {
+  const page = await browser.newPage({ reducedMotion: 'reduce' });
+  const endpoint = 'https://script.google.com/macros/s/test-rejected/exec';
+  await page.route(endpoint, route => {
+    const payload = JSON.parse(new URLSearchParams(route.request().postData()).get('payload'));
+    const receipt = { type: 'sarapau:rsvp:receipt', version: 1, requestId: payload.requestId, received: false, count: 0, error: 'NOT_CONFIGURED' };
+    return route.fulfill({ contentType: 'text/html', body: `<script>window.top.postMessage(${JSON.stringify(receipt)},${JSON.stringify(origin)});</script>` });
+  });
+  await load(page, 'index', { rsvpMode: 'google', endpoint });
+  await saveGuest(page, { name: 'Prova local' });
+  await page.getByRole('button', { name: 'Enviar respostes', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'error');
+  assert.equal(await page.locator('#rsvp').getAttribute('data-error'), 'NOT_CONFIGURED');
+  assert.equal(await page.locator('#rsvp-success').isVisible(), false);
+  await page.close();
+});
+
+test('Sense recepció en trenta segons, es cancel·la l’enviament i no es pot tornar a enviar', async () => {
   const page = await browser.newPage({ reducedMotion: 'reduce' });
   await load(page);
   await page.evaluate(async () => {
@@ -623,9 +641,14 @@ test('Sense recepció en deu segons, es cancel·la l’enviament i no es pot tor
     });
   });
   await saveGuest(page, { name: 'Berta Ferrer' });
+  await page.clock.install();
   await page.getByRole('button', { name: 'Enviar respostes', exact: true }).click();
   assert.equal(await page.locator('#rsvp-loading').evaluate(el => el.open), true);
-  await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'error', undefined, { timeout: 12000 });
+  await page.clock.runFor(29000);
+  assert.equal(await page.locator('#rsvp').getAttribute('data-state'), 'sending');
+  await page.clock.runFor(1100);
+  await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'error');
+  assert.equal(await page.locator('#rsvp').getAttribute('data-error'), 'TIMEOUT');
   assert.equal(await page.locator('#rsvp-error').textContent(), 'Alguna cosa ha anat mal, tona-ho a intentar més tard');
   assert.equal(await page.locator('#rsvp-title .icon-cross').isVisible(), true);
   assert.equal(await page.locator('#rsvp-title .icon-check').isVisible(), false);

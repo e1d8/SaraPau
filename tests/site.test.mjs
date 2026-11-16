@@ -4,7 +4,7 @@ import { readFile, readdir, access } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { wedding } from '../assets/js/content.js';
 import { validateReply, sendRepliesWithTimeout, simulateSendReplies } from '../assets/js/rsvp.js';
-import { validateGoogleEndpoint, isGoogleReceiptOrigin } from '../assets/js/google-sheets.js';
+import { validateGoogleEndpoint, isGoogleReceiptOrigin, RSVP_TIMEOUT_MS } from '../assets/js/google-sheets.js';
 import { rsvpConfig } from '../assets/js/rsvp-config.js';
 
 const root = resolve(import.meta.dirname, '..');
@@ -23,7 +23,11 @@ test('L’RSVP exigix nom, assistència i bus quan s’hi assistix', () => {
 test('L’enviament necessita recepció explícita i cancel·la el transport en esgotar el termini', async () => {
   const replies = [{ name: 'Aina Ferrer', attendance: 'no', bus: '', dietary: '' }];
   assert.deepEqual(await sendRepliesWithTimeout(replies, {
-    sendReplies: async payload => { assert.deepEqual(payload, replies); return { received: true }; },
+    sendReplies: async (payload, options) => {
+      assert.deepEqual(payload, replies);
+      assert.equal(options.timeoutMs, 30000);
+      return { received: true };
+    },
   }), { received: true });
   let transportSignal;
   let acknowledge;
@@ -109,6 +113,7 @@ test('L’RSVP no persistix dades al navegador i la configuració exigix un endp
   const assets = await readdir(resolve(root, 'assets/js'));
   assert.deepEqual(assets.sort(), ['app.js', 'content.js', 'google-sheets.js', 'motion.js', 'navigation.js', 'rsvp-config.js', 'rsvp.js', 'scrollbar.js']);
   assert.equal(rsvpConfig.mode, 'google');
+  assert.equal(RSVP_TIMEOUT_MS, 30000);
   const endpoint = 'https://script.google.com/macros/s/test-deployment/exec';
   assert.equal(validateGoogleEndpoint(endpoint), endpoint);
   for (const value of ['', 'https://evil.example/exec', 'https://script.google.com/macros/s/id/dev', 'https://user:password@script.google.com/macros/s/id/exec']) {

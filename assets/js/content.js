@@ -1,9 +1,9 @@
-// Edita este fitxer per a personalitzar la invitació. La data continua sent de demostració.
+// Edita este fitxer per a personalitzar la invitació.
 export const wedding = {
   couple: 'Sara i Pau',
-  date: '2027-06-21',
-  dateShort: '21-06-27',
-  dateLong: '21 de juny de 2027',
+  date: '2027-10-09',
+  dateShort: '09-10-27',
+  dateLong: '9 d’octubre de 2027',
   location: 'Vila-real · Benicàssim',
   time: '16.00 – 22.00 h',
   replyBy: '20 de maig de 2027',

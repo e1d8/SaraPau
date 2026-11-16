@@ -1,6 +1,6 @@
 import { wedding } from './content.js';
 import { rsvpConfig } from './rsvp-config.js';
-import { sendToGoogleSheets } from './google-sheets.js';
+import { sendToGoogleSheets, RSVP_TIMEOUT_MS, RsvpError } from './google-sheets.js';
 
 export function validateReply({ name, attendance, bus }) {
   const errors = {};
@@ -34,7 +34,7 @@ export function sendConfiguredReplies(replies, options = {}) {
 
 // Només una confirmació explícita de recepció resol l’enviament. En esgotar
 // el termini, s’avorta el transport i qualsevol resposta tardana s’ignora.
-export function sendRepliesWithTimeout(replies, { sendReplies = sendConfiguredReplies, timeoutMs = 10000, signal } = {}) {
+export function sendRepliesWithTimeout(replies, { sendReplies = sendConfiguredReplies, timeoutMs = RSVP_TIMEOUT_MS, signal } = {}) {
   return new Promise((resolve, reject) => {
     const transport = new AbortController();
     let settled = false;
@@ -46,19 +46,19 @@ export function sendRepliesWithTimeout(replies, { sendReplies = sendConfiguredRe
       if (error) { transport.abort(); reject(error); }
       else resolve(receipt);
     };
-    const cancel = () => finish(new Error('Enviament cancel·lat'));
-    const timer = setTimeout(() => finish(new Error('Temps de recepció esgotat')), timeoutMs);
+    const cancel = () => finish(new RsvpError('ABORTED', 'Enviament cancel·lat'));
+    const timer = setTimeout(() => finish(new RsvpError('TIMEOUT', 'Temps de recepció esgotat')), timeoutMs);
     if (signal?.aborted) { cancel(); return; }
     signal?.addEventListener('abort', cancel, { once: true });
     Promise.resolve().then(() => {
-      if (!settled) return sendReplies(replies, { signal: transport.signal });
+      if (!settled) return sendReplies(replies, { signal: transport.signal, timeoutMs });
     }).then(receipt => {
       if (receipt?.received === true) finish(null, receipt);
     }).catch(error => finish(error));
   });
 }
 
-export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies, timeoutMs = 10000 } = {}) {
+export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies, timeoutMs = RSVP_TIMEOUT_MS } = {}) {
   const form = root.querySelector('#rsvp-form');
   if (!form) return;
   const section = root.querySelector('#rsvp') || root;
@@ -107,6 +107,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     state = value;
     section.dataset.state = value;
     section.setAttribute('aria-busy', String(value === 'sending'));
+    if (value !== 'error') delete section.dataset.error;
     title.querySelector('.rsvp-result').hidden = !['success', 'error'].includes(value);
     title.setAttribute('aria-label', value === 'success' ? 'Confirmació: respostes rebudes' : value === 'error' ? 'Confirmació: error en l’enviament' : 'Confirmació');
   };
@@ -272,13 +273,20 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     loading.showModal();
     loading.querySelector('h3').focus();
     let received = false;
+    let errorCode;
     try {
       await sendRepliesWithTimeout(replies.map(reply => ({ ...reply })), { sendReplies, timeoutMs, signal: pending.signal });
       received = true;
-    } catch { /* L’error substituïx la graella i no permet reintents. */ }
+    } catch (error) {
+      errorCode = error instanceof RsvpError ? error.code : 'SEND_FAILED';
+    }
     if (generation !== current) return;
     pending = null;
     setState(received ? 'success' : 'error');
+    if (!received) {
+      section.dataset.error = errorCode;
+      console.warn('RSVP: enviament no confirmat.', { code: errorCode });
+    }
     manager.hidden = true;
     success.hidden = !received;
     failure.hidden = received;

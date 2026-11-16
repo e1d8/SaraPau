@@ -48,6 +48,7 @@ function backend() {
   spreadsheet.insertSheet('Full 1');
   const properties = {
     getProperty: key => state.properties.get(key) || null,
+    getProperties: () => Object.fromEntries(state.properties),
     setProperty(key, value) { state.properties.set(key, value); return this; },
     setProperties(values) { Object.entries(values).forEach(([key, value]) => state.properties.set(key, value)); return this; },
   };
@@ -62,7 +63,7 @@ function backend() {
     setAllowInvalid(value) { this.value.allowInvalid = value; return this; }, build() { return this.value; },
   });
   const context = vm.createContext({
-    Date, console: { error: () => {} },
+    Date, console: { error: () => {}, info: () => {} },
     LockService: { getScriptLock: () => lock },
     PropertiesService: { getScriptProperties: () => properties },
     SpreadsheetApp: {
@@ -148,6 +149,54 @@ test('Una petició repetida no duplica files i un reintent recupera una escriptu
   assert.equal(app.post({ ...first, guests: [guest('Altra persona')] }).receipt.error, 'REQUEST_CONFLICT');
 });
 
+test('Les caselles FALSE i un punter antic a 1005 no desplacen els nous invitats ni esborren respostes', () => {
+  const app = backend(); app.context.setupSpreadsheet();
+  const sheet = app.state.sheets[0];
+  sheet.maxRows = 1004;
+  for (let row = 2; row <= 1004; row++) sheet.cells.set(`${row}:2`, false);
+  app.state.properties.set('RSVP_NEXT_ROW', '1005');
+  for (let row = 1001; row <= 1004; row++) {
+    app.state.properties.set(`RSVP_legacy-${row}`, JSON.stringify({ row, count: 1, state: 'pending' }));
+  }
+  // Una resposta anterior, encara que estiga al final, s'ha de conservar.
+  const previous = ['Resposta existent', true, 'Anada', 'Sense gluten', new Date('2026-11-16T12:00:00Z')];
+  previous.forEach((value, col) => sheet.cells.set(`1004:${col + 1}`, value));
+  const reservations = [...app.state.properties].filter(([key]) => key.startsWith('RSVP_legacy-'));
+  app.state.calls.length = 0;
+  const before = normalize(app.context.diagnoseSetup());
+  assert.equal(before.lastDataRow, 1004);
+  assert.equal(before.nextReservedRow, 1005);
+  assert.equal(before.nextWriteRow, 2);
+  assert.equal(before.checkboxOnlyRows, 1002);
+  assert.equal(before.guestCount, 1);
+  assert.equal(before.firstGuestRow, 1004);
+  assert.deepEqual(app.state.calls, [], 'El diagnòstic no modifica el full');
+  const response = app.post(app.request([guest('Sara'), guest('Pau', 'none', false)])).receipt;
+  assert.equal(response.received, true);
+  assert.equal(response.count, 2);
+  assert.deepEqual(sheet.getRange(2, 1, 2, 4).getValues(), [['Sara', true, 'No', ''], ['Pau', false, 'No', '']]);
+  assert.deepEqual(sheet.getRange(1004, 1, 1, 5).getValues()[0], previous);
+  assert.deepEqual([...app.state.properties].filter(([key]) => key.startsWith('RSVP_legacy-')), reservations);
+  const after = normalize(app.context.diagnoseSetup());
+  assert.equal(after.guestCount, 3);
+  assert.equal(after.firstGuestRow, 2);
+  assert.equal(after.lastGuestRow, 1004);
+  assert.equal(after.nextWriteRow, 4);
+});
+
+test('Busca espai per al lot complet respectant reserves i files amb dades parcials', () => {
+  const app = backend(); app.context.setupSpreadsheet();
+  const sheet = app.state.sheets[0];
+  sheet.cells.set('2:1', 'Invitat existent');
+  sheet.cells.set('7:4', 'Dada existent');
+  app.state.properties.set('RSVP_legacy-pending', JSON.stringify({ row: 3, count: 2, state: 'pending' }));
+  assert.equal(app.post(app.request([guest('A'), guest('B'), guest('C')])).receipt.received, true);
+  assert.deepEqual(sheet.getRange(8, 1, 3, 1).getValues().flat(), ['A', 'B', 'C']);
+  assert.deepEqual(sheet.getRange(3, 1, 2, 5).getValues(), Array.from({ length: 2 }, () => Array(5).fill('')));
+  assert.equal(sheet.cells.get('2:1'), 'Invitat existent');
+  assert.equal(sheet.cells.get('7:4'), 'Dada existent');
+});
+
 test('Rebutja peticions invàlides i bloquejos ocupats sense escriure ni confirmar èxit', () => {
   const app = backend(); app.context.setupSpreadsheet();
   for (const guests of [[guest('')], [guest('A', 'invalid')], [guest('A', 'none', 'true')], Array.from({ length: 51 }, () => guest('A'))]) {
@@ -159,4 +208,20 @@ test('Rebutja peticions invàlides i bloquejos ocupats sense escriure ni confirm
   app.state.busy = false;
   assert.equal(app.post({ ...app.request([guest('A')]), replyTo: 'https://evil.example' }).receipt, undefined);
   assert.equal(app.state.sheets[0].getLastRow(), 1);
+});
+
+test('El diagnòstic comprova la configuració sense escriure cap fila', () => {
+  const app = backend();
+  assert.throws(() => app.context.diagnoseSetup(), /NOT_CONFIGURED/);
+  app.context.setupSpreadsheet();
+  app.state.calls.length = 0;
+  const result = normalize(app.context.diagnoseSetup());
+  assert.equal(result.status, 'OK');
+  assert.equal(result.lastDataRow, 1);
+  assert.equal(result.destinationMatchesActiveSpreadsheet, true);
+  assert.equal(result.nextWriteRow, 2);
+  assert.deepEqual(app.state.calls, []);
+  assert.equal(app.state.sheets[0].getLastRow(), 1);
+  app.state.properties.set('SPREADSHEET_ID', 'un-altre-full');
+  assert.throws(() => app.context.diagnoseSetup(), /WRONG_SPREADSHEET/);
 });

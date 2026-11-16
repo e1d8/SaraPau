@@ -122,7 +122,7 @@ El servidor valida tots els invitats abans d’escriure. Dins del bloqueig reser
 
 Cada enviament té un identificador aleatori. Repetir **la mateixa petició amb el mateix identificador** no duplica les files; una execució interrompuda pot recuperar la reserva. Una recàrrega genera un enviament nou amb un identificador nou: no és una deduplicació de persones pel nom. Per això no s’han de tornar a enviar respostes ja guardades.
 
-La pantalla de càrrega conserva el límit de deu segons. Si no arriba confirmació, es tanca el transport i es mostra l’error; la interfície queda bloquejada fins a recarregar. **Tancar l’espera del navegador no pot parar una execució que Google ja haja començat:** davant d’un timeout, comprova `Invitats` abans de fer un enviament nou. Una recepció tardana s’ignora en el navegador.
+La pantalla de càrrega conserva el límit de trenta segons. Si no arriba confirmació, es tanca el transport i es mostra l’error; la interfície queda bloquejada fins a recarregar. **Tancar l’espera del navegador no pot parar una execució que Google ja haja començat:** davant d’un timeout, comprova `Invitats` abans de fer un enviament nou. Una recepció tardana s’ignora en el navegador.
 
 Si falla la configuració, revisa:
 
@@ -132,6 +132,48 @@ Si falla la configuració, revisa:
 - Origen del web inclòs en `allowedOrigins`.
 - Pestanyes i capçaleres intactes.
 - **Execucions** en Apps Script: es registra un codi d’error, sense noms ni informació alimentària.
+
+### Si no s’ha guardat cap fila
+
+Executa **`diagnoseSetup`** des de l’editor d’Apps Script. Només llig la configuració i el full: no crea invitats. Ha de mostrar `status: "OK"`, amb l’origen correcte i les posicions de les respostes. Si dona `NOT_CONFIGURED`, torna a executar `setupSpreadsheet`. Si dona un error de permisos, revisa l’autorització i que l’aplicació s’execute com el propietari correcte.
+
+Per a vore el resultat, tria `diagnoseSetup` al selector del costat d’**Executar**, executa-la i obri **Registre d’execució / Execution log** en la barra superior de l’editor. La llista **Execucions** del menú lateral només indica l’estat general, com ara «Completed»; no és el resultat del diagnòstic.
+
+`destinationMatchesActiveSpreadsheet: true` confirma que el destí configurat correspon al full vinculat que estàs revisant. `WRONG_SPREADSHEET` indica que la configuració apunta a un altre document. Este diagnòstic no escriu res.
+
+- `guestCount`, `firstGuestRow` i `lastGuestRow` compten i localitzen les files amb nom. Comprova eixes files en `Invitats`, incloent les ocultes o filtrades.
+- `lastDataRow` és l’última fila amb algun valor, incloses les caselles amb `FALSE`: **no és el nombre d’invitats**. `checkboxOnlyRows` compta les files buides que només tenen la casella desmarcada i, opcionalment, bus `No`.
+- `nextWriteRow` és la primera fila disponible per a un invitat nou. Un cercle més gran pot necessitar un altre espai amb totes les files consecutives lliures.
+- `nextReservedRow` és el punter conservat per compatibilitat amb versions anteriors; ja no decidix on començar a escriure.
+
+Si una versió anterior mostra `lastDataRow: 1004` i `nextReservedRow: 1005`, comprova també `A1001:E1004`: podria haver guardat les respostes molt avall. Les caselles buides també podien fer que el codi saltara al final del full o rebutjara una fila amb `FALSE` com si continguera una altra resposta. El codi actual busca files realment disponibles des de la fila 2, accepta les caselles buides i conserva les dades i les reserves existents. Copia el `Code.gs` actualitzat en Apps Script i publica una **nova versió de la implementació existent**. No cal esborrar files ni reiniciar les propietats del projecte.
+
+En el navegador, obri **Eines de desenvolupador → Consola** i busca `RSVP: enviament no confirmat.` després d’intentar enviar. El codi també està en l’atribut `data-error` de la secció `#rsvp`. No es registra cap nom ni menú en estos missatges.
+
+`doPost` captura els errors i torna una resposta, de manera que l’execució pot constar com a **Completada** encara que no s’haja guardat res. Si Apps Script mostra «No logs are available for this execution», pots capturar la resposta de Google directament. Recarrega la pàgina i executa açò en la consola **abans** de provar l’enviament:
+
+```js
+window.addEventListener('message', e => {
+  if (e.data?.type === 'sarapau:rsvp:receipt')
+    console.log('Resposta RSVP:', e.data);
+});
+```
+
+Revisa `received` i `error`. El missatge no conté noms ni menús. Si no arriba cap missatge, revisa també els errors de xarxa i CSP de la consola. Una prova amb una llista buida retorna expressament `INVALID_PAYLOAD` i no comprova el guardat d’invitats.
+
+| Codi | Què revisar |
+| --- | --- |
+| `TIMEOUT` | No ha arribat una recepció vàlida en 30 segons. Comprova primer si s’han guardat les files. |
+| `CONFIGURATION_ERROR` | URL `/exec` buida o incorrecta en `rsvp-config.js`. |
+| `NOT_CONFIGURED` | `setupSpreadsheet` no ha acabat bé o el projecte apunta a un altre full. |
+| `INVALID_HEADERS` | Nom i ordre exactes de les cinc capçaleres. |
+| `INVALID_PAYLOAD` / `INVALID_GUEST` | Origen permés, límit de 50 invitats i camps acceptats. |
+| `BUSY` | El bloqueig estava ocupat per una altra execució. |
+| `RESERVATION_CONFLICT` | Una fila reservada conté dades diferents de les esperades. Actualitza el codi si només hi havia una casella `FALSE`; no esborres respostes existents. |
+| `INVALID_RESERVATION` | Una propietat de reserva té un format invàlid. Revisa el codi i les propietats del projecte sense eliminar les reserves de respostes reals. |
+| `SERVER_ERROR` | Revisa el registre de `doPost` en Apps Script; també es registra la línia on ha fallat. |
+
+Si l’aplicació falla al cap de pocs segons amb un d’estos codis, allargar el timeout no corregix el problema de configuració. Després de canviar el codi d’Apps Script, publica una **nova versió** de la implementació; després de canviar el web, publica també els nous fitxers en GitHub Pages.
 
 Si una còpia anterior mostra `Cannot read properties of null (reading 'setTabColor')` en `setupSpreadsheet`, actualitza `Code.gs` amb el fitxer corregit i torna a executar la funció abans de publicar. `setFrozenRows()` no retorna el full i no permet encadenar `setTabColor()`. Les pestanyes podien estar creades, però faltava guardar `SPREADSHEET_ID`. No cal tornar a crear el document: repetir la configuració conserva els invitats existents.
 
