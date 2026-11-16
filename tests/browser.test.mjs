@@ -372,8 +372,8 @@ test('La barra principal se superposa al dibuix, permet arrossegar i s’oculta 
   await page.locator('.celebration').scrollIntoViewIfNeeded();
   assert.equal(await page.evaluate(() => document.documentElement.clientWidth === innerWidth && document.documentElement.scrollWidth <= innerWidth), true);
   assert.equal(await rail.evaluate(el => el.getBoundingClientRect().right === innerWidth), true);
-  assert.equal(await page.locator('.art-banquet').evaluate(el => el.getBoundingClientRect().right > innerWidth), true);
-  if (process.env.SCREENSHOTS_DIR) await page.screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'banquet-overlay-1920.png') });
+  assert.equal(await page.locator('.art-rames-taronger').evaluate(el => el.getBoundingClientRect().right > innerWidth), true);
+  if (process.env.SCREENSHOTS_DIR) await page.screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'rames-taronger-overlay-1920.png') });
   await page.getByRole('button', { name: 'Afegir invitat', exact: true }).click();
   assert.equal(await rail.isVisible(), false);
   const close = page.getByRole('button', { name: 'Tancar finestra', exact: true });
@@ -427,6 +427,57 @@ async function saveGuest(page, { name, attendance = 'no', bus = 'none', dietary 
   assert.equal(await page.locator('#guest-saved').isVisible(), true);
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
 }
+
+test('Els missatges del formulari reben el focus sense caixes i els botons conserven el focus de teclat', async () => {
+  for (const outcome of ['success', 'error']) {
+    const page = await browser.newPage({ reducedMotion: 'reduce' });
+    await load(page);
+    await page.evaluate(async () => {
+      const old = document.querySelector('#rsvp');
+      const next = old.cloneNode(true);
+      old.replaceWith(next);
+      const { setupRsvp } = await import('./assets/js/rsvp.js');
+      setupRsvp(next, { sendReplies: () => new Promise((resolve, reject) => {
+        window.finishSubmission = success => success ? resolve({ received: true }) : reject(new Error('Prova local'));
+      }) });
+    });
+    const assertStatusFocus = async selector => {
+      const status = await page.locator(selector).evaluate(el => ({
+        focused: el === document.activeElement, outline: getComputedStyle(el).outlineStyle,
+      }));
+      assert.equal(status.focused, true, `${selector}: conservar el focus per anunciar el missatge`);
+      assert.equal(status.outline, 'none', `${selector}: no mostrar una caixa al voltant del text`);
+    };
+    const assertButtonFocus = async selector => {
+      const visible = await page.locator(selector).evaluate(el =>
+        el === document.activeElement && el.matches(':focus-visible') &&
+        getComputedStyle(el).outlineStyle !== 'none' && parseFloat(getComputedStyle(el).outlineWidth) > 0);
+      assert.equal(visible, true, `${selector}: el focus de teclat ha de continuar visible`);
+    };
+    await page.keyboard.press('Tab');
+    await page.locator('#add-guest').focus();
+    await assertButtonFocus('#add-guest');
+    await page.keyboard.press('Enter');
+    await page.locator('#guest-name').fill('Prova local');
+    await page.getByLabel('No podré vindre').check();
+    await page.keyboard.press('Tab');
+    await page.locator('#rsvp-form button[type="submit"]').focus();
+    await page.keyboard.press('Enter');
+    await assertStatusFocus('#guest-saved h4');
+    await page.keyboard.press('Tab');
+    await assertButtonFocus('#continue-replies');
+    await page.keyboard.press('Enter');
+    await page.locator('#send-replies').focus();
+    await page.keyboard.press('Enter');
+    await assertStatusFocus('#loading-title');
+    await page.evaluate(success => window.finishSubmission(success), outcome === 'success');
+    await page.waitForFunction(expected => document.querySelector('#rsvp').dataset.state === expected, outcome);
+    await assertStatusFocus(outcome === 'success' ? '#rsvp-success h3' : '#rsvp-error');
+    await page.keyboard.press('Tab');
+    await assertButtonFocus('#copy-iban');
+    await page.close();
+  }
+});
 
 test('Els invitats es guarden, s’editen en una graella de cinc columnes i s’envien una sola vegada', async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });

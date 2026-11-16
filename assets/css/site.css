@@ -57,6 +57,9 @@ input,textarea{min-width:0}
 strong{font-weight:400}
 [hidden]{display:none!important}
 :focus-visible{outline:3px solid var(--dark);outline-offset:6px}
+/* Els missatges reben focus per anunciar el canvi, sense emmarcar el text.
+   Els controls interactius conserven l'indicador de focus del teclat. */
+.guest-saved h4:focus,.loading-dialog h3:focus,.rsvp-success h3:focus,.rsvp-error:focus{outline:none}
 .signature{font-family:"Vintage Rotter",cursive;font-weight:400;line-height:1.2;text-transform:none;color:var(--primary)}
 .section{padding-inline:7.57%}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
@@ -78,6 +81,7 @@ strong{font-weight:400}
 .art-wedding-table{--illustration:url("../illustrations/wedding-table.svg");aspect-ratio:2558/1358}
 .art-calendar{--illustration:url("../illustrations/calendar.svg");aspect-ratio:295/241}
 .art-banquet{--illustration:url("../illustrations/banquet.svg");aspect-ratio:4810/1483}
+.art-rames-taronger{--illustration:url("../illustrations/rames-taronger.svg");aspect-ratio:1200/362}
 .art-rings{--illustration:url("../illustrations/rings.svg");aspect-ratio:278/183}
 .art-esglesia-major{--illustration:url("../illustrations/esglesia-major.svg");aspect-ratio:540/582}
 .art-heart{--illustration:url("../illustrations/heart.svg");aspect-ratio:1}
@@ -87,7 +91,7 @@ strong{font-weight:400}
 .art-autobus{--illustration:url("../illustrations/autobus.svg");aspect-ratio:570/263}
 .art-cotidia{--illustration:url("../illustrations/cotidia.svg");aspect-ratio:568/520}
 /* Estos vectors ja tenen el verd i zones blanques: conservar els colors originals. */
-.art-taula,.art-autobus,.art-cotidia{mask-image:none;background:transparent var(--illustration) center/contain no-repeat}
+.art-taula,.art-autobus,.art-cotidia,.art-rames-taronger{mask-image:none;background:transparent var(--illustration) center/contain no-repeat}
 
 .home-hero{overflow:visible;text-align:center;padding-top:96px}
 .hero-copy{padding-inline:24px}
