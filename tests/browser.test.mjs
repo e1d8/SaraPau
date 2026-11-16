@@ -25,7 +25,11 @@ after(async () => {
   if (server) await new Promise(resolve => server.close(resolve));
 });
 
-async function load(page, filename = 'index') {
+async function load(page, filename = 'index', { rsvpMode = 'demo', endpoint = '' } = {}) {
+  // Les proves generals utilitzen la simulació de manera explícita.
+  await page.route('**/assets/js/rsvp-config.js', route => route.fulfill({
+    contentType: 'text/javascript', body: `export const rsvpConfig = ${JSON.stringify({ mode: rsvpMode, endpoint })};`,
+  }));
   await page.goto(`${origin}${prefix}/${filename}.html`, { waitUntil: 'networkidle' });
   await page.evaluate(() => document.fonts.ready);
 }
@@ -522,6 +526,82 @@ test('Els invitats es guarden, s’editen en una graella de cinc columnes i s’
   assert.equal(await page.locator('#rsvp-success').isVisible(), false);
   assert.equal(await page.locator('#add-guest').isVisible(), true);
   assert.equal(await page.locator('#send-replies').isVisible(), false);
+  await page.close();
+});
+
+test('Google rep un POST amb tots els invitats i només una recepció vàlida desbloqueja l’èxit', async () => {
+  const page = await browser.newPage({ reducedMotion: 'reduce' });
+  const endpoint = 'https://script.google.com/macros/s/test-deployment/exec';
+  let payload, release, posted;
+  const gate = new Promise(resolve => { release = resolve; });
+  const postSeen = new Promise(resolve => { posted = resolve; });
+  await page.route(endpoint, async route => {
+    assert.equal(route.request().method(), 'POST');
+    payload = JSON.parse(new URLSearchParams(route.request().postData()).get('payload'));
+    posted();
+    await gate;
+    const receipt = { type: 'sarapau:rsvp:receipt', version: 1, requestId: payload.requestId, received: true, count: payload.guests.length };
+    const inner = 'https://script.googleusercontent.com/test-receipt?message=' + encodeURIComponent(JSON.stringify(receipt));
+    await route.fulfill({ contentType: 'text/html', body: `<iframe src="${inner}"></iframe>` });
+  });
+  await page.route('https://script.googleusercontent.com/test-receipt?*', route => {
+    const receipt = JSON.parse(new URL(route.request().url()).searchParams.get('message'));
+    return route.fulfill({ contentType: 'text/html', body: `<script>
+      const receipt = ${JSON.stringify(receipt)}, target = ${JSON.stringify(origin)};
+      window.top.postMessage({...receipt,requestId:'wrong-request'},target);
+      window.top.postMessage({...receipt,count:999},target);
+      window.top.postMessage({type:'test:invalid-receipts-sent'},target);
+      setTimeout(()=>window.top.postMessage(receipt,target),200);
+    </script>` });
+  });
+  await load(page, 'index', { rsvpMode: 'google', endpoint });
+  await page.evaluate(() => window.addEventListener('message', event => {
+    if (event.data?.type === 'test:invalid-receipts-sent') window.invalidReceiptsSent = true;
+  }));
+  await saveGuest(page, { name: 'Sara Ferrer', attendance: 'yes', bus: 'return-midnight', dietary: 'Sense gluten' });
+  await saveGuest(page, { name: 'Pau Martí' });
+  await page.getByRole('button', { name: 'Enviar respostes', exact: true }).click();
+  await postSeen;
+  assert.deepEqual(payload.guests, [
+    { name: 'Sara Ferrer', attending: true, bus: 'return-midnight', dietary: 'Sense gluten' },
+    { name: 'Pau Martí', attending: false, bus: 'none', dietary: '' },
+  ]);
+  assert.equal(payload.replyTo, origin);
+  assert.equal(await page.locator('#rsvp').getAttribute('data-state'), 'sending');
+  // Un emissor alié amb un missatge semblant no confirma l'enviament.
+  await page.evaluate(requestId => window.dispatchEvent(new MessageEvent('message', {
+    origin: 'https://script.googleusercontent.com', source: window,
+    data: { type: 'sarapau:rsvp:receipt', version: 1, requestId, received: true, count: 2 },
+  })), payload.requestId);
+  assert.equal(await page.locator('#rsvp').getAttribute('data-state'), 'sending');
+  release();
+  await page.waitForFunction(() => window.invalidReceiptsSent === true);
+  assert.equal(await page.locator('#rsvp').getAttribute('data-state'), 'sending');
+  await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'success');
+  assert.equal(await page.locator('iframe[name^="rsvp-"]').count(), 0);
+  assert.equal(await page.locator('form[target^="rsvp-"]').count(), 0);
+  assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
+  await page.close();
+});
+
+test('Sense endpoint no hi ha èxit simulat i un timeout retira el transport de Google', async () => {
+  const page = await browser.newPage({ reducedMotion: 'reduce' });
+  await load(page, 'index', { rsvpMode: 'google' });
+  await saveGuest(page, { name: 'Sara Ferrer' });
+  await page.getByRole('button', { name: 'Enviar respostes', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'error');
+  assert.equal(await page.locator('iframe[name^="rsvp-"]').count(), 0);
+  const endpoint = 'https://script.google.com/macros/s/test-timeout/exec';
+  await page.route(endpoint, route => route.fulfill({ contentType: 'text/html', body: 'Sense confirmació' }));
+  const result = await page.evaluate(async endpoint => {
+    const { sendToGoogleSheets } = await import('./assets/js/google-sheets.js');
+    try {
+      await sendToGoogleSheets([{ name: 'Pau', attendance: 'no', bus: '', dietary: '' }], { endpoint, timeoutMs: 150 });
+      return 'unexpected success';
+    } catch (error) { return error.message; }
+  }, endpoint);
+  assert.equal(result, 'Temps de recepció esgotat');
+  assert.equal(await page.locator('iframe[name^="rsvp-"]').count(), 0);
   await page.close();
 });
 

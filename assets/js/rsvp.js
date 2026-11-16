@@ -1,4 +1,6 @@
 import { wedding } from './content.js';
+import { rsvpConfig } from './rsvp-config.js';
+import { sendToGoogleSheets } from './google-sheets.js';
 
 export function validateReply({ name, attendance, bus }) {
   const errors = {};
@@ -24,9 +26,15 @@ export function simulateSendReplies(replies, { signal } = {}) {
   });
 }
 
+export function sendConfiguredReplies(replies, options = {}) {
+  if (rsvpConfig.mode === 'demo') return simulateSendReplies(replies, options);
+  if (rsvpConfig.mode !== 'google') throw new Error('Mode d’RSVP desconegut.');
+  return sendToGoogleSheets(replies, { ...options, endpoint: rsvpConfig.endpoint });
+}
+
 // Només una confirmació explícita de recepció resol l’enviament. En esgotar
 // el termini, s’avorta el transport i qualsevol resposta tardana s’ignora.
-export function sendRepliesWithTimeout(replies, { sendReplies = simulateSendReplies, timeoutMs = 10000, signal } = {}) {
+export function sendRepliesWithTimeout(replies, { sendReplies = sendConfiguredReplies, timeoutMs = 10000, signal } = {}) {
   return new Promise((resolve, reject) => {
     const transport = new AbortController();
     let settled = false;
@@ -50,7 +58,7 @@ export function sendRepliesWithTimeout(replies, { sendReplies = simulateSendRepl
   });
 }
 
-export function setupRsvp(root = document, { sendReplies = simulateSendReplies, timeoutMs = 10000 } = {}) {
+export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies, timeoutMs = 10000 } = {}) {
   const form = root.querySelector('#rsvp-form');
   if (!form) return;
   const section = root.querySelector('#rsvp') || root;

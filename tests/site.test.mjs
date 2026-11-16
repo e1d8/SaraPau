@@ -4,6 +4,8 @@ import { readFile, readdir, access } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { wedding } from '../assets/js/content.js';
 import { validateReply, sendRepliesWithTimeout, simulateSendReplies } from '../assets/js/rsvp.js';
+import { validateGoogleEndpoint, isGoogleReceiptOrigin } from '../assets/js/google-sheets.js';
+import { rsvpConfig } from '../assets/js/rsvp-config.js';
 
 const root = resolve(import.meta.dirname, '..');
 
@@ -51,7 +53,8 @@ test('La landing utilitza valencià i recursos locals; les rutes antigues rediri
     assert.match(html, /lang="ca-valencia"/);
     if (filename === 'index.html') {
       assert.match(html, /connect-src 'none'/);
-      assert.match(html, /form-action 'none'/);
+      assert.match(html, /form-action https:\/\/script\.google\.com https:\/\/\*\.googleusercontent\.com/);
+      assert.match(html, /frame-src https:\/\/script\.google\.com https:\/\/\*\.googleusercontent\.com/);
     } else {
       assert.match(html, /http-equiv="refresh" content="0; url=index\.html/);
     }
@@ -99,10 +102,19 @@ test('Totes les fotografies i les màscares tenen el recurs corresponent', async
   for (const color of ['#636b2f', '#bac095', '#d4de95', '#3d4127']) assert.ok(css.includes(color));
 });
 
-test('El codi de l’RSVP no inclou transport ni emmagatzematge', async () => {
+test('L’RSVP no persistix dades al navegador i la configuració exigix un endpoint real', async () => {
   const js = await readFile(resolve(root, 'assets/js/rsvp.js'), 'utf8');
   assert.doesNotMatch(js, /fetch\s*\(|XMLHttpRequest|sendBeacon|localStorage|sessionStorage|indexedDB|document\.cookie/);
   assert.match(js, /event\.preventDefault\(\)/);
   const assets = await readdir(resolve(root, 'assets/js'));
-  assert.deepEqual(assets.sort(), ['app.js', 'content.js', 'motion.js', 'navigation.js', 'rsvp.js', 'scrollbar.js']);
+  assert.deepEqual(assets.sort(), ['app.js', 'content.js', 'google-sheets.js', 'motion.js', 'navigation.js', 'rsvp-config.js', 'rsvp.js', 'scrollbar.js']);
+  assert.equal(rsvpConfig.mode, 'google');
+  const endpoint = 'https://script.google.com/macros/s/test-deployment/exec';
+  assert.equal(validateGoogleEndpoint(endpoint), endpoint);
+  for (const value of ['', 'https://evil.example/exec', 'https://script.google.com/macros/s/id/dev', 'https://user:password@script.google.com/macros/s/id/exec']) {
+    assert.throws(() => validateGoogleEndpoint(value));
+  }
+  assert.equal(isGoogleReceiptOrigin('https://script.googleusercontent.com'), true);
+  assert.equal(isGoogleReceiptOrigin('https://n-example-script.googleusercontent.com'), true);
+  for (const origin of ['null', 'http://script.google.com', 'https://script.google.com.evil.example', 'https://unrelated.googleusercontent.com']) assert.equal(isGoogleReceiptOrigin(origin), false);
 });

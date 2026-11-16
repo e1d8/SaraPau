@@ -83,6 +83,11 @@ strong{font-weight:400}
 .art-heart{--illustration:url("../illustrations/heart.svg");aspect-ratio:1}
 .art-cupid{--illustration:url("../illustrations/cupid.svg");aspect-ratio:1}
 .art-champagne{--illustration:url("../illustrations/champagne.svg");aspect-ratio:1261/2000}
+.art-taula{--illustration:url("../illustrations/taula.svg");aspect-ratio:538/490}
+.art-autobus{--illustration:url("../illustrations/autobus.svg");aspect-ratio:570/263}
+.art-cotidia{--illustration:url("../illustrations/cotidia.svg");aspect-ratio:568/520}
+/* Estos vectors ja tenen el verd i zones blanques: conservar els colors originals. */
+.art-taula,.art-autobus,.art-cotidia{mask-image:none;background:transparent var(--illustration) center/contain no-repeat}
 
 .home-hero{overflow:visible;text-align:center;padding-top:96px}
 .hero-copy{padding-inline:24px}
