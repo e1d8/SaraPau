@@ -120,9 +120,9 @@ El botó **→** (o **Guardar modificacions** en editar) només incorpora l’in
 
 El servidor valida tots els invitats abans d’escriure. Dins del bloqueig reserva les files i fa un únic `setValues()` per al cercle. Confirma l’èxit després de `SpreadsheetApp.flush()`. Els textos que podrien interpretar-se com una fórmula es guarden com a text literal.
 
-Cada enviament té un identificador aleatori. Repetir **la mateixa petició amb el mateix identificador** no duplica les files; una execució interrompuda pot recuperar la reserva. Una recàrrega genera un enviament nou amb un identificador nou: no és una deduplicació de persones pel nom. Per això no s’han de tornar a enviar respostes ja guardades.
+Cada lot té un identificador aleatori, que es conserva en reintentar sense modificar les respostes. Si s’edita el lot, el reintent rep un identificador nou. Repetir **la mateixa petició amb el mateix identificador** no duplica les files; una execució interrompuda pot recuperar la reserva. Una recàrrega genera un enviament nou amb un identificador nou: no és una deduplicació de persones pel nom. Per això no s’han de tornar a enviar respostes ja guardades.
 
-La pantalla de càrrega conserva el límit de trenta segons. Si no arriba confirmació, es tanca el transport i es mostra l’error; la interfície queda bloquejada fins a recarregar. **Tancar l’espera del navegador no pot parar una execució que Google ja haja començat:** davant d’un timeout, comprova `Invitats` abans de fer un enviament nou. Una recepció tardana s’ignora en el navegador.
+La pantalla de càrrega conserva el límit de trenta segons. Si no arriba confirmació, es tanca el transport i es mostra l’error; es pot tornar al llistat tancant l’error i prement «Vindràs?». **Tancar l’espera del navegador no pot parar una execució que Google ja haja començat:** davant d’un timeout, comprova `Invitats` abans de fer un enviament nou. Una recepció tardana s’ignora en el navegador.
 
 Si falla la configuració, revisa:
 

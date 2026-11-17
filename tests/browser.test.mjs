@@ -584,10 +584,11 @@ test('Les capçaleres queden fixes i els botons compartixen tipografia i amplàr
         const width = el.getBoundingClientRect().width;
         const parent = getComputedStyle(el.parentElement);
         const available = el.parentElement.clientWidth - parseFloat(parent.paddingLeft) - parseFloat(parent.paddingRight);
-        return { width, expected, available };
+        return { width, height: el.getBoundingClientRect().height, expected, available };
       });
-      assert.ok(Math.abs(size.width - size.expected) < 2 || size.width < size.expected || Math.abs(size.width - size.available) < 2,
+      assert.ok(Math.abs(size.width - size.expected) < 2 || size.width < size.expected || Math.abs(size.width - size.available) < 2 || Math.abs(size.width - size.height) < 2,
         `${selector}: amplària ajustada al text o al límit disponible ${JSON.stringify(size)}`);
+      assert.ok(size.width + .5 >= size.height, `${selector}: amplària mínima igual a l’altura`);
       assert.equal(await page.locator(selector).evaluate(el => getComputedStyle(el).textTransform), 'none');
       if (!await page.locator(selector).isDisabled()) {
         await page.locator(selector).hover();
@@ -837,11 +838,17 @@ test('Els missatges del formulari reben el focus sense caixes i els botons conse
     await assertStatusFocus('#loading-title');
     await page.evaluate(success => window.finishSubmission(success), outcome === 'success');
     await page.waitForFunction(expected => document.querySelector('#rsvp').dataset.state === expected, outcome);
-    await assertStatusFocus(outcome === 'success' ? '#rsvp-success h3' : '#rsvp-error-title');
-    await page.keyboard.press(outcome === 'success' ? 'Shift+Tab' : 'Tab');
-    await assertButtonFocus('#close-guest-dialog');
-    await page.keyboard.press('Enter');
-    await assertButtonFocus('#open-rsvp');
+    await assertStatusFocus(outcome === 'success' ? '#rsvp-success-title' : '#rsvp-error-title');
+    if (outcome === 'success') {
+      assert.equal(await page.locator('#guest-dialog').evaluate(el => el.open), false);
+      await page.keyboard.press('Tab');
+      await assertButtonFocus('#copy-iban');
+    } else {
+      await page.keyboard.press('Tab');
+      await assertButtonFocus('#close-guest-dialog');
+      await page.keyboard.press('Enter');
+      await assertButtonFocus('#open-rsvp');
+    }
     await page.close();
   }
 });
@@ -1015,14 +1022,15 @@ test('Vindràs descarta canvis pendents, conserva invitats i permet revisar aban
   await page.evaluate(() => document.querySelector('#send-replies').click());
   await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'success');
   assert.equal(await page.locator('#rsvp-loading').evaluate(el => el.open), false);
-  assert.equal(await page.locator('#rsvp-success h3').textContent(), 'Heu enviat les respostes. Gràcies');
+  assert.equal(await page.locator('#rsvp-success-title').textContent(), 'Respostes enviades');
+  assert.equal(await page.locator('#rsvp-success h3').textContent(), 'Gràcies');
   assert.equal(await page.locator('#rsvp-success .icon-heart').isVisible(), true);
-  if (process.env.SCREENSHOTS_DIR) await page.locator('#guest-dialog').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'respostes-enviades-320.png') });
+  if (process.env.SCREENSHOTS_DIR) await page.locator('#rsvp').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'respostes-enviades-320.png') });
   assert.equal(await page.locator('#guest-manager').isVisible(), false);
   assert.equal(await page.locator('#rsvp-error').isVisible(), false);
-  await page.locator('#close-guest-dialog').click();
-  await openRsvp(page);
-  assert.equal(await page.locator('#rsvp-success').isVisible(), true);
+  assert.equal(await page.locator('#open-rsvp').isVisible(), false);
+  assert.equal(await page.locator('.invitation-cupid').isVisible(), false);
+  assert.equal(await page.locator('#guest-dialog').evaluate(el => el.open), false);
   await page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     document.querySelector('#send-replies').click();
@@ -1144,7 +1152,7 @@ test('El rebuig de Google conserva el codi de diagnòstic sense mostrar èxit', 
   await page.close();
 });
 
-test('Sense recepció en trenta segons, es cancel·la l’enviament i no es pot tornar a enviar', async () => {
+test('Sense recepció en trenta segons, es cancel·la l’enviament i es pot recuperar la llista', async () => {
   const page = await browser.newPage({ reducedMotion: 'reduce' });
   await load(page);
   await page.evaluate(async () => {
@@ -1188,7 +1196,9 @@ test('Sense recepció en trenta segons, es cancel·la l’enviament i no es pot 
   assert.equal(await page.locator('#guest-dialog').evaluate(el => el.open), true);
   await page.locator('#close-guest-dialog').click();
   await openRsvp(page);
-  assert.equal(await page.locator('#rsvp-error').isVisible(), true);
+  assert.equal(await page.locator('#guest-manager').isVisible(), true);
+  assert.equal(await page.locator('.guest-edit').count(), 1);
+  assert.equal(await page.locator('#send-replies').isDisabled(), false);
   assert.equal(await page.evaluate(() => window.sendCalls), 1);
   await page.reload({ waitUntil: 'networkidle' });
   assert.equal(await page.locator('#rsvp-error').isVisible(), false);
@@ -1286,25 +1296,21 @@ test('L’error conserva la traça tècnica original en pantalla i TXT sense afe
     assert.equal(page.url(), initialUrl);
     assert.equal(page.context().pages().length, initialPages);
     assert.equal(await page.locator('#guest-dialog').evaluate(el => el.open), true);
-    await page.locator('#close-guest-dialog').click();
-    await openRsvp(page);
-    assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
-    assert.equal(await page.locator('#error-time').getAttribute('datetime'), iso);
     await toggle.click();
     assert.equal(await page.locator('#error-details').isVisible(), false);
     assert.equal(await toggle.textContent(), 'Mostrar error');
     await page.evaluate(() => {
       document.querySelector('#send-replies').click();
       document.querySelector('#confirm-send').click();
-      document.querySelector('#add-guest').click();
     });
     assert.equal(await page.evaluate(() => window.sendCalls), 1);
-    assert.equal(await page.locator('#rsvp').getAttribute('data-state'), 'error');
     assert.deepEqual(requests, [], 'Consultar i descarregar el diagnòstic no transmet dades');
-    if (process.env.SCREENSHOTS_DIR && scenario.code === 'NOT_CONFIGURED') {
-      await toggle.click();
-      await page.locator('#guest-dialog').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'error-diagnostic-390.png') });
-    }
+    await page.locator('#close-guest-dialog').click();
+    await openRsvp(page);
+    assert.equal(await page.locator('#rsvp').getAttribute('data-state'), 'collecting');
+    assert.equal(await page.locator('#guest-manager').isVisible(), true);
+    assert.equal(await page.locator('.guest-edit').count(), 1);
+    assert.equal(await page.locator('#send-replies').isDisabled(), false);
     await page.reload({ waitUntil: 'networkidle' });
     await openRsvp(page);
     assert.equal(await page.locator('#rsvp').getAttribute('data-state'), 'collecting');
@@ -1312,6 +1318,72 @@ test('L’error conserva la traça tècnica original en pantalla i TXT sense afe
     assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
     await page.close();
   }
+});
+
+test('Un error permet editar i reintentar; l’èxit substituïx Vindràs pel text i el cor negre', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'no-preference' });
+  await load(page);
+  await page.locator('#open-rsvp').focus({ preventScroll: true });
+  await page.evaluate(async () => {
+    const old = document.querySelector('#rsvp');
+    const next = old.cloneNode(true);
+    old.replaceWith(next);
+    const { setupRsvp } = await import('./assets/js/rsvp.js');
+    const { RsvpError } = await import('./assets/js/google-sheets.js');
+    window.attempts = [];
+    setupRsvp(next, { sendReplies: async (replies, { requestId }) => {
+      window.attempts.push({ replies, requestId });
+      if (window.attempts.length < 3) throw new RsvpError('BUSY', 'BUSY');
+      return { received: true };
+    } });
+  });
+  await saveGuest(page, { name: 'Aina' });
+  for (let i = 0; i < 2; i++) {
+    await page.locator('#send-replies').click();
+    await page.locator('#confirm-send').click();
+    await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'error');
+    await page.locator('#close-guest-dialog').click();
+    await openRsvp(page);
+    assert.equal(await page.locator('.guest-name-label').textContent(), 'Aina');
+  }
+  await page.locator('.guest-edit').click();
+  await page.locator('#guest-name').fill('Aina Ferrer');
+  await page.locator('#save-guest').click();
+  await page.locator('#send-replies').click();
+  await page.locator('#confirm-send').click();
+  await page.waitForFunction(() => document.querySelector('#rsvp').dataset.state === 'success');
+  const attempts = await page.evaluate(() => window.attempts);
+  assert.equal(attempts[0].requestId, attempts[1].requestId);
+  assert.notEqual(attempts[1].requestId, attempts[2].requestId);
+  assert.equal(attempts[2].replies[0].name, 'Aina Ferrer');
+  assert.equal(await page.locator('#guest-dialog').evaluate(el => el.open), false);
+  assert.equal(await page.locator('#rsvp-loading').evaluate(el => el.open), false);
+  assert.equal(await page.locator('#open-rsvp').isVisible(), false);
+  assert.equal(await page.locator('.invitation-cupid').isVisible(), false);
+  assert.equal(await page.locator('#rsvp-success').isVisible(), true);
+  const style = selector => page.locator(selector).first().evaluate(el => {
+    const s = getComputedStyle(el); return [s.fontFamily,s.fontSize,s.fontWeight,s.lineHeight,s.color];
+  });
+  assert.deepEqual(await style('.success-title'), await style('.timeline-time'));
+  assert.deepEqual(await style('.success-thanks'), await style('.timeline h3'));
+  assert.equal(await page.locator('#rsvp-success .icon-heart').evaluate(el => getComputedStyle(el).color), 'rgb(0, 0, 0)');
+  const beat = await page.locator('#rsvp-success .icon-heart').evaluate(el => {
+    const animation = el.getAnimations()[0];
+    const timing = animation.effect.getTiming();
+    animation.pause(); animation.currentTime = 200;
+    const peak = getComputedStyle(el).scale;
+    animation.currentTime = 2500;
+    return { duration: timing.duration, infinite: timing.iterations === Infinity, peak, rest: getComputedStyle(el).scale };
+  });
+  assert.equal(beat.duration, 5000);
+  assert.equal(beat.infinite, true);
+  assert.equal(beat.rest, '1');
+  assert.notEqual(beat.peak, beat.rest);
+  await page.locator('#rsvp-success').evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished.catch(() => {}))));
+  if (process.env.SCREENSHOTS_DIR) await page.locator('#rsvp').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'exit-cor-negre.png') });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  assert.equal(await page.locator('#rsvp-success .icon-heart').evaluate(el => el.getAnimations().length), 0);
+  await page.close();
 });
 
 test('Els camps creixen fins a quatre línies, es contrauen i mantenen les barres uniformes', async () => {

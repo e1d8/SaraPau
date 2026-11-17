@@ -35,7 +35,7 @@ export function sendConfiguredReplies(replies, options = {}) {
 
 // Només una confirmació explícita de recepció resol l’enviament. En esgotar
 // el termini, s’avorta el transport i qualsevol resposta tardana s’ignora.
-export function sendRepliesWithTimeout(replies, { sendReplies = sendConfiguredReplies, timeoutMs = RSVP_TIMEOUT_MS, signal } = {}) {
+export function sendRepliesWithTimeout(replies, { sendReplies = sendConfiguredReplies, timeoutMs = RSVP_TIMEOUT_MS, signal, requestId } = {}) {
   return new Promise((resolve, reject) => {
     const transport = new AbortController();
     let settled = false;
@@ -52,7 +52,7 @@ export function sendRepliesWithTimeout(replies, { sendReplies = sendConfiguredRe
     if (signal?.aborted) { cancel(); return; }
     signal?.addEventListener('abort', cancel, { once: true });
     Promise.resolve().then(() => {
-      if (!settled) return sendReplies(replies, { signal: transport.signal, timeoutMs });
+      if (!settled) return sendReplies(replies, { signal: transport.signal, timeoutMs, requestId });
     }).then(receipt => {
       if (receipt?.received === true) finish(null, receipt);
     }).catch(error => finish(error));
@@ -64,6 +64,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   if (!form) return;
   const section = root.querySelector('#rsvp') || root;
   const trigger = root.querySelector('#open-rsvp');
+  const invitation = root.querySelector('.rsvp-invitation');
   const manager = root.querySelector('#guest-manager');
   const managerTitle = root.querySelector('#manager-title');
   const description = root.querySelector('#rsvp-description');
@@ -108,6 +109,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   let pending = null;
   let generation = 0;
   let diagnostic = null;
+  let attempt = null;
 
   const setErrorExpanded = expanded => {
     errorDetails.hidden = !expanded;
@@ -156,6 +158,8 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
 
   const setState = value => {
     state = value;
+    invitation.hidden = value === 'success';
+    success.hidden = value !== 'success';
     section.dataset.state = value;
     section.setAttribute('aria-busy', String(value === 'sending'));
     if (value !== 'error') delete section.dataset.error;
@@ -163,7 +167,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   const focusView = () => {
     if (!dialog.open || state === 'sending') return;
     const target = view === 'guest' ? form.elements.name : view === 'another' ? saved.querySelector('h4') :
-      view === 'review' ? root.querySelector('#review-title') : view === 'success' ? success.querySelector('h3') :
+      view === 'review' ? root.querySelector('#review-title') : view === 'success' ? root.querySelector('#rsvp-success-title') :
       view === 'error' ? errorTitle : view === 'delete' ? deletionTitle : root.querySelector('#rsvp-description');
     target.focus({ preventScroll: true });
     resizeTextFields();
@@ -177,7 +181,6 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     deletion.hidden = value !== 'delete';
     deletionTitle.hidden = value !== 'delete';
     review.hidden = value !== 'review';
-    success.hidden = value !== 'success';
     failure.hidden = value !== 'error';
     header.hidden = value === 'another';
     managerTitle.hidden = value !== 'manager';
@@ -358,6 +361,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     form.reset();
     summary.replaceChildren();
     diagnostic = null;
+    attempt = null;
     errorCode.textContent = errorMessage.textContent = errorTime.textContent = '';
     errorTime.removeAttribute('datetime');
     setErrorExpanded(false);
@@ -368,7 +372,12 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   };
 
   trigger.addEventListener('click', () => {
-    if (state === 'sending' || dialog.open) return;
+    if (state === 'sending' || state === 'success' || dialog.open) return;
+    if (state === 'error') {
+      setState('collecting');
+      renderGuests();
+      showView('manager', false);
+    }
     dialog.showModal();
     focusView();
   });
@@ -394,7 +403,9 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     if (view === 'another' || state === 'sending') event.preventDefault();
     else if (view === 'guest' || view === 'review' || view === 'delete') { event.preventDefault(); requestClose(); }
   });
-  dialog.addEventListener('close', () => trigger.focus({ preventScroll: true }));
+  dialog.addEventListener('close', () => {
+    if (state !== 'success') trigger.focus({ preventScroll: true });
+  });
   errorToggle.addEventListener('click', () => {
     if (state === 'error' && diagnostic) setErrorExpanded(errorDetails.hidden);
   });
@@ -457,6 +468,8 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   confirmSend.addEventListener('click', async () => {
     if (state !== 'collecting' || !replies.length || !dialog.open || view !== 'review') return;
     const current = generation;
+    const payload = JSON.stringify(replies);
+    if (!attempt || attempt.payload !== payload) attempt = { payload, requestId: crypto.randomUUID() };
     setState('sending');
     send.disabled = true;
     confirmSend.disabled = true;
@@ -466,7 +479,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     let received = false;
     let sendError;
     try {
-      await sendRepliesWithTimeout(replies.map(reply => ({ ...reply })), { sendReplies, timeoutMs, signal: pending.signal });
+      await sendRepliesWithTimeout(replies.map(reply => ({ ...reply })), { sendReplies, timeoutMs, signal: pending.signal, requestId: attempt.requestId });
       received = true;
     } catch (error) {
       sendError = error;
@@ -481,7 +494,10 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     }
     showView(received ? 'success' : 'error', false);
     loading.close();
-    focusView();
+    if (received) {
+      dialog.close();
+      root.querySelector('#rsvp-success-title').focus({ preventScroll: true });
+    } else focusView();
   });
 
   window.addEventListener('pageshow', event => {
