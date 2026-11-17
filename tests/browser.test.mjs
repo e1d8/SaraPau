@@ -354,6 +354,8 @@ test('Cupido flota al costat de Vindràs i els cors pugen i esclaten sense inter
     assert.ok(risen.y < born.y - 40, 'Els cors ixen del botó i pugen');
     assert.equal(popped.heart, 0);
     assert.ok(popped.pop > .1, 'El cor es transforma en un esclat');
+    assert.ok((await sample(.9)).pop < .001, 'L’esclat acaba en la meitat de temps');
+    assert.equal(await page.locator('.bubble-pop path').first().evaluate(el => /z/i.test(el.getAttribute('d'))), false, 'L’esclat només conté espurnes obertes');
     assert.deepEqual(await button.boundingBox(), buttonRect, 'La decoració no mou el botó');
     const cupidRect = await page.locator('.invitation-cupid').boundingBox();
     assert.ok(cupidRect.x < buttonRect.x && cupidRect.y < buttonRect.y);
@@ -1364,8 +1366,8 @@ test('Un error permet editar i reintentar; l’èxit substituïx Vindràs pel te
   const style = selector => page.locator(selector).first().evaluate(el => {
     const s = getComputedStyle(el); return [s.fontFamily,s.fontSize,s.fontWeight,s.lineHeight,s.color];
   });
-  assert.deepEqual(await style('.success-title'), await style('.timeline-time'));
-  assert.deepEqual(await style('.success-thanks'), await style('.timeline h3'));
+  assert.deepEqual(await style('.success-title'), await style('body'));
+  assert.deepEqual(await style('.success-thanks'), await style('.timeline .is-transport h3'));
   assert.equal(await page.locator('#rsvp-success .icon-heart').evaluate(el => getComputedStyle(el).color), 'rgb(0, 0, 0)');
   const beat = await page.locator('#rsvp-success .icon-heart').evaluate(el => {
     const animation = el.getAnimations()[0];
@@ -1383,6 +1385,40 @@ test('Un error permet editar i reintentar; l’èxit substituïx Vindràs pel te
   if (process.env.SCREENSHOTS_DIR) await page.locator('#rsvp').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'exit-cor-negre.png') });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   assert.equal(await page.locator('#rsvp-success .icon-heart').evaluate(el => el.getAnimations().length), 0);
+  await page.close();
+});
+
+test('En mòbil les ombres indiquen contingut ocult en llistat, formulari, resum i camps llargs', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 568 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  await load(page);
+  for (let i = 1; i <= 8; i++) await saveGuest(page, { name: `Invitat ${i}` });
+  const assertGuides = async selector => {
+    const area = page.locator(selector);
+    await area.evaluate(el => { el.scrollTop = 0; });
+    await page.waitForFunction(selector => document.querySelector(selector).hasAttribute('data-scroll-down') && !document.querySelector(selector).hasAttribute('data-scroll-up'), selector);
+    assert.notEqual(await area.evaluate(el => getComputedStyle(el).boxShadow), 'none');
+    await area.evaluate(el => { el.scrollTop = (el.scrollHeight - el.clientHeight) / 2; });
+    await page.waitForFunction(selector => document.querySelector(selector).hasAttribute('data-scroll-down') && document.querySelector(selector).hasAttribute('data-scroll-up'), selector);
+    await area.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    await page.waitForFunction(selector => !document.querySelector(selector).hasAttribute('data-scroll-down') && document.querySelector(selector).hasAttribute('data-scroll-up'), selector);
+  };
+  await assertGuides('#guest-list-scroll');
+  await page.locator('#send-replies').click();
+  await assertGuides('#review-scroll');
+  if (process.env.SCREENSHOTS_DIR) await page.locator('#guest-dialog').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'guia-scroll-mobil.png') });
+  await page.locator('#close-guest-dialog').click();
+  await page.locator('#add-guest').click();
+  await page.getByLabel('Sí, allí estaré!').check();
+  await page.locator('#dietary').fill(Array.from({ length: 20 }, (_, i) => `Comentari ${i}`).join('\n'));
+  await assertGuides('#guest-fields');
+  await assertGuides('#dietary');
+  await page.locator('#dietary').fill('');
+  await page.waitForFunction(() => !document.querySelector('#dietary').hasAttribute('data-scroll-up') && !document.querySelector('#dietary').hasAttribute('data-scroll-down'));
+  assert.equal(await page.locator('#dietary').evaluate(el => getComputedStyle(el).boxShadow), 'none');
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.locator('#close-guest-dialog').click();
+  await page.locator('#send-replies').click();
+  await assertGuides('#review-scroll');
   await page.close();
 });
 

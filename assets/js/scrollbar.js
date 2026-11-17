@@ -58,3 +58,32 @@ export function setupPageScrollbar() {
   document.fonts.ready.then(schedule);
   render();
 }
+
+// Les ombres marquen només els costats on encara queda contingut ocult.
+export function setupScrollGuides() {
+  const areas = [...document.querySelectorAll('.dialog-scroll, textarea')];
+  let frame = 0;
+  const render = () => {
+    frame = 0;
+    areas.forEach(area => {
+      const scrollable = area.clientHeight > 0 && area.scrollHeight > area.clientHeight + 1;
+      area.toggleAttribute('data-scroll-up', scrollable && area.scrollTop > 1);
+      area.toggleAttribute('data-scroll-down', scrollable && area.scrollTop + area.clientHeight < area.scrollHeight - 1);
+    });
+  };
+  const schedule = () => { if (!frame) frame = requestAnimationFrame(render); };
+  const resize = new ResizeObserver(schedule);
+  areas.forEach(area => {
+    resize.observe(area);
+    area.addEventListener('scroll', schedule, { passive: true });
+    area.addEventListener('input', schedule);
+  });
+  const section = document.querySelector('#rsvp');
+  if (section) new MutationObserver(schedule).observe(section, {
+    subtree: true, childList: true, characterData: true, attributes: true,
+    attributeFilter: ['hidden', 'open', 'rows', 'class'],
+  });
+  window.addEventListener('resize', schedule);
+  document.fonts.ready.then(schedule);
+  render();
+}

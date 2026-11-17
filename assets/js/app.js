@@ -1,7 +1,7 @@
 import { icon } from './icons.js';
 import { wedding as w } from './content.js';
 import { setupRsvp } from './rsvp.js';
-import { setupPageScrollbar } from './scrollbar.js';
+import { setupPageScrollbar, setupScrollGuides } from './scrollbar.js';
 import { setupMotion } from './motion.js';
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -70,6 +70,7 @@ function landing() {
 document.querySelector('#app').innerHTML = landing();
 setupRsvp();
 setupPageScrollbar();
+setupScrollGuides();
 setupMotion();
 
 function copyWithSelection(text) {
