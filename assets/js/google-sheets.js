@@ -2,7 +2,12 @@ const RECEIPT_TYPE = 'sarapau:rsvp:receipt';
 export const RSVP_TIMEOUT_MS = 30000;
 
 export class RsvpError extends Error {
-  constructor(code, message) { super(message); this.name = 'RsvpError'; this.code = code; }
+  constructor(code, message, response) {
+    super(message);
+    this.name = 'RsvpError';
+    this.code = code;
+    if (response !== undefined) this.response = response;
+  }
 }
 
 export function validateGoogleEndpoint(value) {
@@ -85,7 +90,7 @@ export function sendToGoogleSheets(replies, { endpoint, signal, requestId = cryp
           !data || data.type !== RECEIPT_TYPE || data.version !== 1 || data.requestId !== requestId) return;
       if (data.received === false) {
         const code = typeof data.error === 'string' && /^[A-Z_]{1,40}$/.test(data.error) ? data.error : 'GOOGLE_REJECTED';
-        finish(new RsvpError(code, 'Google no ha confirmat el guardat.'));
+        finish(new RsvpError(code, 'Google no ha confirmat el guardat.', data));
       }
       else if (data.received === true && data.count === guests.length) finish(null, { received: true, count: data.count, requestId });
     };

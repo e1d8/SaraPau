@@ -2,8 +2,9 @@
 // element entra una sola vegada quan arriba a la pantalla, sense moure el disseny.
 export function setupMotion() {
   const preference = matchMedia('(prefers-reduced-motion: reduce)');
+  setupInvitationMotion(preference);
   if (preference.matches || !('IntersectionObserver' in window) || !Element.prototype.animate) return;
-  const targets = [...document.querySelectorAll('.hero-copy > *, .home-hero > .art, .timeline > h2, .timeline-item, .rsvp-panel > .form-heading, .rsvp-description, .guest-grid, .celebration > .banquet-divider, .closing-message, .bank-account, .site-footer > *')];
+  const targets = [...document.querySelectorAll('.hero-copy > *, .timeline-item, .rsvp-invitation, .celebration > .banquet-divider, .closing-message, .bank-account, .site-footer > *')];
   const hero = document.querySelector('.home-hero');
   const introduction = [
     { element: hero.querySelector('h1'), phase: 'names', signature: true },
@@ -200,4 +201,25 @@ export function setupMotion() {
     observeRemaining();
   };
   document.fonts.ready.then(() => { if (!stopped) return runIntroduction(); }).catch(showEverything);
+}
+
+// Sis cors reutilitzables: les animacions només viuen mentre es veu el botó.
+function setupInvitationMotion(preference) {
+  const invitation = document.querySelector('.rsvp-invitation');
+  if (!invitation) return;
+  const section = invitation.closest('#rsvp');
+  let inView = !('IntersectionObserver' in window);
+  const update = () => invitation.classList.toggle('is-floating',
+    inView && !preference.matches && !document.hidden && !section.querySelector('dialog[open]'));
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(entries => {
+      inView = entries[0].isIntersecting;
+      update();
+    }, { rootMargin: '32px 0px' });
+    observer.observe(invitation);
+  }
+  new MutationObserver(update).observe(section, { attributes: true, attributeFilter: ['open'], subtree: true });
+  preference.addEventListener('change', update);
+  document.addEventListener('visibilitychange', update);
+  update();
 }

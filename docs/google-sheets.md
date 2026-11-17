@@ -114,7 +114,7 @@ Prem **Enviar respostes** i comprova:
 - `Asistirà` conté booleans, `Bus` mostra les opcions del desplegable i `Timestamp` és una data real.
 - `Recompte` mostra **4 assistents, 3 d’anada, 1 de tornada a les 00:00 i 1 de tornada a les 02:00**.
 
-El botó **Guardar resposta** només incorpora l’invitat a la llista temporal. Les dades s’envien juntes quan es prem **Enviar respostes**. En recarregar es reinicia la interfície, però les files guardades en Google es conserven.
+El botó **→** (o **Guardar modificacions** en editar) només incorpora l’invitat a la llista temporal dins de la finestra «Vindràs?». El botó **Enviar respostes 💌→** obri el resum; les dades s’envien juntes només després de prémer **Enviar 💌→** en eixa revisió. En recarregar es reinicia la interfície, però les files guardades en Google es conserven.
 
 ## Guardat, recepció i errors
 
@@ -147,6 +147,8 @@ Per a vore el resultat, tria `diagnoseSetup` al selector del costat d’**Execut
 - `nextReservedRow` és el punter conservat per compatibilitat amb versions anteriors; ja no decidix on començar a escriure.
 
 Si una versió anterior mostra `lastDataRow: 1004` i `nextReservedRow: 1005`, comprova també `A1001:E1004`: podria haver guardat les respostes molt avall. Les caselles buides també podien fer que el codi saltara al final del full o rebutjara una fila amb `FALSE` com si continguera una altra resposta. El codi actual busca files realment disponibles des de la fila 2, accepta les caselles buides i conserva les dades i les reserves existents. Copia el `Code.gs` actualitzat en Apps Script i publica una **nova versió de la implementació existent**. No cal esborrar files ni reiniciar les propietats del projecte.
+
+En la finestra **Error :(**, prem **Mostrar error** per consultar el codi, la resposta tècnica de Google o la traça original del navegador, i la data i hora. Pots usar **Descarregar error (.txt)** per guardar el diagnòstic localment i compartir-lo. El fitxer conserva literalment l’error rebut sense afegir-hi el formulari. Les traces internes d’Apps Script només poden mostrar-se si el servidor les inclou en la resposta; el desplegament actual retorna el codi d’error.
 
 En el navegador, obri **Eines de desenvolupador → Consola** i busca `RSVP: enviament no confirmat.` després d’intentar enviar. El codi també està en l’atribut `data-error` de la secció `#rsvp`. No es registra cap nom ni menú en estos missatges.
 

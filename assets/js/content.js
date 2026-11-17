@@ -21,7 +21,7 @@ export const wedding = {
     { name: 'Pau', phone: '34690121958' },
   ],
   places: {
-    church: { name: 'església major', address: 'Carrer Sant Roc, 1, 12540 Vila-real, Castelló' },
+    church: { name: 'església arxiprestal major Sant Jaume', address: 'Carrer Sant Roc, 1, 12540 Vila-real, Castelló' },
     lluisos: { name: 'Lluïssos', address: 'Av. de la Mura, 12, 12540 Vila-real, Castelló' },
     celebration: { name: 'El Invernadero', address: 'Av. Gimeno Tomas, 36, 12560 Benicàssim, Castelló' },
   },
@@ -49,9 +49,9 @@ export const wedding = {
   },
   timeline: [
     { time: '12:00', title: 'LA CERIMÒNIA', illustration: 'esglesia-major', imageSide: 'left', parts: ['Mos casarem a l’', { place: 'church' }, ' de Vila-real'] },
-    { time: '13:30', title: 'EIXIDA BUS ANADA', kind: 'transport', illustration: 'cotidia', imageSide: 'right', parts: ['Desde el ', { place: 'lluisos' }, ' cap a ', { place: 'celebration' }] },
-    { time: '14:00', title: 'LA CELEBRACIÓ', illustration: 'taula', imageSide: 'left', parts: ['Hi haurà aparcament al recinte. En ', { place: 'celebration' }, ' farem coctel, dinar i acabarem fent festa!'] },
-    { time: '00:00', title: 'EIXIDA BUS TORNADA', kind: 'transport', illustration: 'autobus', imageSide: 'right', parts: ['Desde ', { place: 'celebration' }, ' als ', { place: 'lluisos' }] },
+    { time: '13:30', title: 'EIXIDA BUS ANADA', kind: 'transport', illustration: 'autobus', imageSide: 'right', parts: ['Desde el ', { place: 'lluisos' }, ' cap a ', { place: 'celebration' }] },
+    { time: '14:00', title: 'LA CELEBRACIÓ', illustration: 'cotidia', imageSide: 'left', parts: ['Hi haurà aparcament al recinte. En ', { place: 'celebration' }, ' farem coctel, dinar i acabarem fent festa!'] },
+    { time: '00:00', title: 'EIXIDA BUS TORNADA', kind: 'transport', illustration: 'focs-artificials', imageSide: 'right', parts: ['Desde ', { place: 'celebration' }, ' als ', { place: 'lluisos' }] },
   ],
   dresscode: 'Vos demanem que vingueu amb vestimenta formal. Podeu inspirar-vos en estos tons.',
   entourageIntro: 'Amb l’estima i el suport de les persones que ens acompanyen de més a prop.',
