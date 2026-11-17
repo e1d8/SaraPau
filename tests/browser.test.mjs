@@ -393,6 +393,33 @@ test('Cupido flota al costat de Vindràs i els cors pugen i esclaten sense inter
   }
 });
 
+test('Els elements visibles després del missatge entren en ordre amb un quart de segon entre inicis', async () => {
+  const page = await browser.newPage({ viewport: { width: 1366, height: 1600 }, reducedMotion: 'no-preference' });
+  await load(page);
+  await page.evaluate(() => {
+    window.revealTimes = [];
+    const elements = [...document.querySelectorAll('.timeline-item')];
+    const seen = new Set();
+    new MutationObserver(() => elements.forEach((el, index) => {
+      if (!seen.has(el) && !el.classList.contains('reveal-pending')) {
+        seen.add(el);
+        window.revealTimes.push({ index, time: performance.now() });
+      }
+    })).observe(document.querySelector('.timeline'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+  });
+  await page.waitForFunction(() => window.revealTimes.length === 4);
+  const times = await page.evaluate(() => window.revealTimes);
+  assert.deepEqual(times.map(item => item.index), [0, 1, 2, 3]);
+  for (let i = 1; i < times.length; i++) {
+    const interval = times[i].time - times[i - 1].time;
+    assert.ok(interval >= 230 && interval < 450, `Interval esperat de 250 ms: ${interval}`);
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => document.querySelectorAll('.reveal-pending').length === 0);
+  assert.equal(await page.locator('.reveal-pending').count(), 0);
+  await page.close();
+});
+
 test('La recàrrega comença dalt i la benvinguda bloqueja el scroll fins al final', async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'no-preference', hasTouch: true });
   await load(page);
@@ -616,6 +643,145 @@ test('Les capçaleres queden fixes i els botons compartixen tipografia i amplàr
   }
 });
 
+test('Les finestres aprofiten l’espai i els noms del llistat es retallen sense desplaçar les accions', async () => {
+  for (const width of [1366, 820, 320]) {
+    const page = await browser.newPage({ viewport: { width, height: 844 }, reducedMotion: 'reduce' });
+    await load(page);
+    await openRsvp(page);
+    const assertSize = async () => {
+      const rect = await page.locator('#guest-dialog').boundingBox();
+      assert.ok(Math.abs(rect.width - Math.min(800, width - 32)) < 1);
+      assert.ok(Math.abs(rect.height - (844 - 32)) < 1);
+    };
+    await assertSize();
+    const name = 'Aina ' + 'Ferrer Soler Roig '.repeat(8);
+    await saveGuest(page, { name });
+    const row = page.locator('.guest-card').first();
+    assert.equal(await row.locator('.guest-name-label').textContent(), name.trim());
+    assert.equal(await row.locator('.guest-name-label').evaluate(el => {
+      const style = getComputedStyle(el);
+      return style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden';
+    }), true);
+    if (width === 320) assert.equal(await row.locator('.guest-name-label').evaluate(el => el.scrollWidth > el.clientWidth), true);
+    assert.equal(await row.evaluate(el => {
+      const name = el.querySelector('.guest-name-label').getBoundingClientRect();
+      const edit = el.querySelector('.guest-edit').getBoundingClientRect();
+      const remove = el.querySelector('.guest-delete').getBoundingClientRect();
+      return name.right <= edit.left && edit.right <= remove.left && edit.width >= 44 && remove.width >= 44;
+    }), true);
+    const rect = await row.boundingBox(), add = await page.locator('#add-guest').boundingBox();
+    assert.ok(Math.abs(rect.width - add.width) < 1 && Math.abs(rect.height - add.height) < 1);
+    assert.equal(await page.locator('.guest-add-outline rect').evaluate(el => el.getBBox().width > 0), true);
+    const nameArea = row.locator('.guest-name-label');
+    const nameRect = await nameArea.boundingBox();
+    await nameArea.hover();
+    assert.equal(await nameArea.evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(0, 0, 0, 0)');
+    await row.locator('.guest-edit').hover();
+    assert.equal(await row.locator('.guest-edit').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(212, 222, 149)');
+    await nameArea.click({ position: { x: nameRect.width - 4, y: nameRect.height / 2 } });
+    assert.equal(await page.locator('#guest-name').inputValue(), name.trim());
+    await page.locator('#close-guest-dialog').click();
+    await page.locator('.guest-name-label').first().focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await page.locator('#guest-name').inputValue(), name.trim());
+    await page.locator('#close-guest-dialog').click();
+    await page.locator('.guest-edit').first().click();
+    await assertSize();
+    assert.equal(await page.locator('#guest-name').inputValue(), name.trim());
+    await page.locator('#close-guest-dialog').click();
+    if (process.env.SCREENSHOTS_DIR) await page.locator('#guest-dialog').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, `llistat-${width}.png`) });
+    await page.locator('#send-replies').click();
+    await assertSize();
+    assert.equal(await page.locator('.icon-mail .ink-fill').count(), 0, 'El sobre ja no porta cor');
+    const centered = await page.locator('#confirm-send .icon-mail').evaluate(el => {
+      const box = el.querySelector('g').getBBox();
+      const transform = el.querySelector('g').transform.baseVal.consolidate().matrix;
+      return Math.abs(box.x + box.width / 2 + transform.e - 12) < 1 && Math.abs(box.y + box.height / 2 + transform.f - 12) < 1;
+    });
+    assert.equal(centered, true);
+    await page.locator('#close-guest-dialog').click();
+    await page.locator('#add-guest').click();
+    await page.locator('#guest-name').fill('Berta');
+    await page.getByLabel('No podré vindre').check();
+    await page.locator('#save-guest').click();
+    const styles = await page.locator('#guest-saved h4,#rsvp-description').evaluateAll(elements => elements.map(el => {
+      const style = getComputedStyle(el);
+      return [style.fontFamily, style.fontSize, style.fontWeight, style.color, style.lineHeight];
+    }));
+    assert.deepEqual(styles[0], styles[1]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.close();
+  }
+});
+
+test('La paperera demana confirmació, conserva els altres invitats i actualitza la revisió i la numeració', async () => {
+  const page = await browser.newPage({ viewport: { width: 320, height: 568 }, reducedMotion: 'reduce' });
+  await load(page);
+  const requests = [];
+  page.on('request', request => requests.push(request.url()));
+  for (const name of ['Aina', 'Berta <img src="/no-carregar">', 'Carles']) await saveGuest(page, { name });
+  assert.equal(await page.locator('.guest-delete .icon-trash').count(), 3);
+  await page.locator('.guest-delete').nth(1).click();
+  assert.equal(await page.locator('#delete-guest-title').textContent(), 'Borrar l’invitat?');
+  assert.equal(await page.locator('#delete-guest-name').textContent(), 'Berta <img src="/no-carregar">');
+  assert.equal(await page.locator('#delete-guest img').count(), 0);
+  const medium = await page.locator('.timeline .is-transport h3').first().evaluate(el => {
+    const s = getComputedStyle(el); return [s.fontFamily, s.fontSize, s.fontWeight, s.lineHeight, s.color, s.textTransform];
+  });
+  for (const selector of ['#delete-guest-name']) assert.deepEqual(await page.locator(selector).evaluate(el => {
+    const s = getComputedStyle(el); return [s.fontFamily, s.fontSize, s.fontWeight, s.lineHeight, s.color, s.textTransform];
+  }), medium);
+  const titleStyles = await page.locator('#delete-guest-title,#manager-title').evaluateAll(elements => elements.map(el => {
+    const s = getComputedStyle(el); return [s.fontFamily, s.fontSize, s.fontWeight, s.lineHeight, s.color, s.textTransform];
+  }));
+  assert.deepEqual(titleStyles[0], titleStyles[1]);
+  for (const selector of ['#confirm-delete-guest', '#cancel-delete-guest']) assert.equal(await page.locator(selector).evaluate(el => {
+    const r = el.getBoundingClientRect(), d = el.closest('dialog').getBoundingClientRect();
+    return r.top >= d.top + 12 && r.bottom <= d.bottom - 12;
+  }), true);
+
+  assert.equal(await page.locator('#delete-guest-title').evaluate(el => el === document.activeElement), true);
+  await page.locator('#cancel-delete-guest').click();
+  assert.equal(await page.locator('.guest-edit').count(), 3);
+  await page.locator('.guest-delete').nth(1).click();
+  await page.locator('#close-guest-dialog').click();
+  assert.equal(await page.locator('#guest-manager').isVisible(), true);
+  assert.equal(await page.locator('.guest-edit').count(), 3);
+  await page.locator('.guest-delete').nth(1).click();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.guest-edit').count(), 3);
+  await page.locator('.guest-delete').nth(1).click();
+  if (process.env.SCREENSHOTS_DIR) await page.locator('#guest-dialog').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'borrar-invitat-320.png') });
+  await page.locator('#confirm-delete-guest').click();
+  assert.deepEqual(await page.locator('.guest-name-label').allTextContents(), ['Aina', 'Carles']);
+  await page.locator('.guest-edit').nth(1).click();
+  assert.equal(await page.locator('#guest-dialog-title').textContent(), 'Invitat 2');
+  assert.equal(await page.locator('#guest-name').inputValue(), 'Carles');
+  await page.locator('#close-guest-dialog').click();
+  await page.locator('#send-replies').click();
+  assert.deepEqual(await page.locator('#reply-summary li dd:first-of-type').allTextContents().then(values => values.filter(value => ['Aina', 'Carles'].includes(value))), ['Aina', 'Carles']);
+  assert.equal(await page.locator('#reply-summary li').count(), 2);
+  await page.locator('#close-guest-dialog').click();
+  await saveGuest(page, { name: 'Dídac' });
+  assert.equal(await page.locator('.guest-edit').count(), 3);
+  if (process.env.SCREENSHOTS_DIR) await page.locator('#guest-dialog').screenshot({ path: resolve(process.env.SCREENSHOTS_DIR, 'papereres-320.png') });
+  while (await page.locator('.guest-delete').count()) {
+    await page.locator('.guest-delete').first().focus();
+    await page.keyboard.press('Enter');
+    await page.locator('#confirm-delete-guest').focus();
+    await page.keyboard.press('Enter');
+  }
+  assert.equal(await page.locator('#guest-manager').isVisible(), true);
+  assert.equal(await page.locator('#send-replies').isDisabled(), true);
+  assert.equal(await page.locator('#confirm-send').isDisabled(), true);
+  assert.equal(await page.locator('#add-guest').evaluate(el => el === document.activeElement), true);
+  await page.locator('#close-guest-dialog').click();
+  await openRsvp(page);
+  assert.equal(await page.locator('.guest-edit').count(), 0);
+  assert.deepEqual(requests, [], 'Eliminar invitats pendents no genera enviaments');
+  await page.close();
+});
+
 test('Els missatges del formulari reben el focus sense caixes i els botons conserven el focus de teclat', async () => {
   for (const outcome of ['success', 'error']) {
     const page = await browser.newPage({ reducedMotion: 'reduce' });
@@ -692,7 +858,9 @@ test('Vindràs descarta canvis pendents, conserva invitats i permet revisar aban
   const send = page.locator('#send-replies');
   assert.equal(await send.isVisible(), true);
   assert.equal(await send.isDisabled(), true);
-  assert.equal(await send.textContent(), 'Enviar respostes 💌→');
+  assert.equal((await send.textContent()).trim(), 'Enviar respostes');
+  assert.equal(await send.locator('.icon-mail').count(), 1);
+  assert.equal(await send.locator('.icon-arrow').count(), 0);
   assert.equal(await page.locator('.rsvp-description').textContent(), 'Afegix la resposta de tots els invitats del teu cercle');
   await page.locator('#close-guest-dialog').click();
   assert.equal(await page.locator('#open-rsvp').isVisible(), true);
@@ -701,7 +869,7 @@ test('Vindràs descarta canvis pendents, conserva invitats i permet revisar aban
   await add.click();
   assert.equal(await page.locator('#guest-dialog-title').textContent(), 'Invitat 1');
   const save = page.locator('#save-guest');
-  assert.equal(await save.textContent(), '→');
+  assert.equal(await save.locator('.icon-arrow').count(), 1);
   await page.locator('#guest-name').fill('Esborrany');
   await page.getByLabel('Sí, allí estaré!').check();
   await page.locator('#dietary').fill('Sense gluten');
@@ -746,7 +914,7 @@ test('Vindràs descarta canvis pendents, conserva invitats i permet revisar aban
     }
     assert.equal(await page.locator('#guest-manager').isVisible(), true);
     assert.equal(await page.locator('.guest-edit').count(), 1);
-    assert.equal(await page.locator('.guest-initials').first().textContent(), 'AIN');
+    assert.equal(await page.locator('.guest-name-label').first().textContent(), name);
     first = false;
   }
   await page.locator('.guest-edit').first().click();
@@ -786,7 +954,7 @@ test('Vindràs descarta canvis pendents, conserva invitats i permet revisar aban
   await page.locator('#close-guest-dialog').click();
   assert.equal(await page.locator('#guest-manager').isVisible(), true);
   assert.equal(await page.locator('.guest-edit').count(), 3);
-  assert.deepEqual(await page.locator('.guest-initials').allTextContents(), ['AIN', 'BER', 'CAR']);
+  assert.deepEqual(await page.locator('.guest-name-label').allTextContents(), [name, 'Berta Ferrer', 'Carles Roig']);
   await add.click();
   assert.equal(await page.locator('#guest-dialog-title').textContent(), 'Invitat 4');
   assert.equal(await page.locator('#guest-name').inputValue(), '');
@@ -796,7 +964,7 @@ test('Vindràs descarta canvis pendents, conserva invitats i permet revisar aban
   await page.locator('#continue-replies').click();
   for (const name of ['Eva Grau', 'Ferran Gil']) await saveGuest(page, { name });
   assert.equal(await page.locator('.guest-edit').count(), 6);
-  assert.equal(await page.locator('#guest-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 5);
+  assert.equal(await page.locator('#guest-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 1);
   assert.equal(await page.locator('.guest-edit').evaluateAll(buttons => buttons[5].getBoundingClientRect().top > buttons[0].getBoundingClientRect().top), true);
   await page.setViewportSize({ width: 320, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -805,12 +973,15 @@ test('Vindràs descarta canvis pendents, conserva invitats i permet revisar aban
   assert.equal(await page.locator('#rsvp-review').isVisible(), true);
   assert.equal(await page.locator('#rsvp').getAttribute('data-state'), 'collecting');
   assert.equal(await page.locator('#rsvp-loading').evaluate(el => el.open), false);
-  assert.equal(await page.locator('#confirm-send').textContent(), 'Enviar 💌→');
+  assert.equal((await page.locator('#confirm-send').textContent()).trim(), 'Enviar');
+  assert.equal(await page.locator('#confirm-send .icon-mail').count(), 1);
+  assert.equal(await page.locator('#confirm-send .icon-arrow').count(), 0);
   assert.equal(await page.locator('#reply-summary > li').count(), 6);
   assert.deepEqual(await page.locator('#reply-summary > li').first().locator('dd').allTextContents(), [name, 'No', 'No', '—']);
   assert.equal(await page.locator('#reply-summary img').count(), 0, 'Els noms es mostren com a text literal');
   for (const [width, height] of [[1366, 900], [820, 900], [390, 844], [320, 568]]) {
     await page.setViewportSize({ width, height });
+    await page.mouse.move(0, 0);
     const measure = () => page.locator('#review-title,#close-guest-dialog,#confirm-send').evaluateAll(buttons => buttons.map(el => {
       const rect = el.getBoundingClientRect();
       return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };

@@ -18,11 +18,15 @@ export function setupMotion() {
   };
   let introActive = !location.hash && scrollY < 80;
   let stopped = false;
+  const visible = new Set();
+  let revealTimer = null;
+  let lastRevealAt = -Infinity;
   const unlockScroll = () => document.documentElement.classList.remove('intro-locked');
   if (introActive) document.documentElement.classList.add('intro-locked');
   const reveal = (element, instant = false, { duration = 650, emphasis = false } = {}) => {
     if (!element.classList.contains('reveal-pending')) return Promise.resolve();
     element.classList.remove('reveal-pending');
+    visible.delete(element);
     observer.unobserve(element);
     if (instant || preference.matches) return Promise.resolve();
     const animation = element.animate([
@@ -152,8 +156,25 @@ export function setupMotion() {
     });
     await Promise.all(promises);
   };
+  const revealNext = () => {
+    if (stopped || introActive || revealTimer !== null) return;
+    const next = targets.find(element => visible.has(element) && element.classList.contains('reveal-pending'));
+    if (!next) return;
+    const wait = Math.max(0, lastRevealAt + 250 - performance.now());
+    if (wait > 0) {
+      revealTimer = setTimeout(() => { revealTimer = null; revealNext(); }, wait);
+      return;
+    }
+    lastRevealAt = performance.now();
+    reveal(next, false, { duration: 450 });
+    revealNext();
+  };
   const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => { if (entry.isIntersecting) reveal(entry.target); });
+    entries.forEach(entry => {
+      if (entry.isIntersecting) visible.add(entry.target);
+      else visible.delete(entry.target);
+    });
+    revealNext();
   }, { threshold: .08, rootMargin: '0px 0px -24px 0px' });
   targets.forEach(element => {
     if (element.getBoundingClientRect().bottom > 0) element.classList.add('reveal-pending');
@@ -165,6 +186,9 @@ export function setupMotion() {
   };
   const showEverything = () => {
     stopped = true;
+    clearTimeout(revealTimer);
+    revealTimer = null;
+    visible.clear();
     introActive = false;
     unlockScroll();
     hero.dataset.intro = 'complete';

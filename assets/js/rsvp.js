@@ -1,3 +1,4 @@
+import { icon as iconMarkup } from './icons.js';
 import { wedding } from './content.js';
 import { rsvpConfig } from './rsvp-config.js';
 import { sendToGoogleSheets, RSVP_TIMEOUT_MS, RsvpError } from './google-sheets.js';
@@ -79,6 +80,9 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   const dialogTitle = root.querySelector('#guest-dialog-title');
   const header = root.querySelector('#guest-dialog-header');
   const saved = root.querySelector('#guest-saved');
+  const deletion = root.querySelector('#delete-guest');
+  const deletionTitle = root.querySelector('#delete-guest-title');
+  const deletionName = root.querySelector('#delete-guest-name');
   const submit = root.querySelector('#save-guest');
   const loading = root.querySelector('#rsvp-loading');
   const success = root.querySelector('#rsvp-success');
@@ -98,6 +102,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   let state = 'collecting';
   let view = 'manager';
   let editingIndex = null;
+  let deletingIndex = null;
   let savedIndex = null;
   let attempted = false;
   let pending = null;
@@ -159,7 +164,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     if (!dialog.open || state === 'sending') return;
     const target = view === 'guest' ? form.elements.name : view === 'another' ? saved.querySelector('h4') :
       view === 'review' ? root.querySelector('#review-title') : view === 'success' ? success.querySelector('h3') :
-      view === 'error' ? errorTitle : root.querySelector('#rsvp-description');
+      view === 'error' ? errorTitle : view === 'delete' ? deletionTitle : root.querySelector('#rsvp-description');
     target.focus({ preventScroll: true });
     resizeTextFields();
   };
@@ -169,6 +174,8 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     manager.hidden = value !== 'manager';
     form.hidden = value !== 'guest';
     saved.hidden = value !== 'another';
+    deletion.hidden = value !== 'delete';
+    deletionTitle.hidden = value !== 'delete';
     review.hidden = value !== 'review';
     success.hidden = value !== 'success';
     failure.hidden = value !== 'error';
@@ -179,10 +186,11 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     dialogTitle.hidden = value !== 'guest';
     errorTitle.hidden = value !== 'error';
     dialog.setAttribute('aria-labelledby', {
-      manager: 'manager-title', guest: 'guest-dialog-title', another: 'another-guest-title', review: 'review-title',
+      manager: 'manager-title', delete: 'delete-guest-title', guest: 'guest-dialog-title', another: 'another-guest-title', review: 'review-title',
       success: 'rsvp-success-title', error: 'rsvp-error-title',
     }[value]);
     if (value === 'manager') dialog.setAttribute('aria-describedby', 'rsvp-description');
+    else if (value === 'delete') dialog.setAttribute('aria-describedby', 'delete-guest-name');
     else dialog.removeAttribute('aria-describedby');
     dialog.scrollTop = 0;
     if (value === 'guest') guestFields.scrollTop = 0;
@@ -217,18 +225,23 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   };
 
   const renderGuests = () => {
-    grid.querySelectorAll('.guest-edit').forEach(button => button.remove());
+    grid.querySelectorAll('.guest-card').forEach(card => card.remove());
     replies.forEach((reply, index) => {
+      const card = document.createElement('div');
+      card.className = 'guest-card';
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'guest-tile guest-edit';
+      button.className = 'guest-edit';
       button.dataset.index = String(index);
       button.setAttribute('aria-label', `Editar resposta de ${reply.name}`);
       button.title = reply.name;
-      const initials = document.createElement('span');
-      initials.className = 'guest-initials';
-      initials.textContent = [...reply.name.split(/\s+/)[0]].slice(0, 3).join('').toLocaleUpperCase('ca');
-      button.append(initials);
+      const name = document.createElement('button');
+      name.type = 'button';
+      name.setAttribute('aria-label', `Editar resposta de ${reply.name}`);
+      name.addEventListener('click', () => openGuest(index));
+      name.className = 'guest-name-label';
+      name.textContent = reply.name;
+      name.title = reply.name;
       const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       icon.setAttribute('viewBox', '0 0 24 24');
       icon.setAttribute('aria-hidden', 'true');
@@ -241,7 +254,20 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
       icon.append(path, tip);
       button.append(icon);
       button.addEventListener('click', () => openGuest(index));
-      grid.insertBefore(button, add);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'guest-delete';
+      remove.setAttribute('aria-label', `Borrar invitat ${reply.name}`);
+      remove.title = `Borrar ${reply.name}`;
+      remove.innerHTML = iconMarkup('trash');
+      remove.addEventListener('click', () => {
+        if (state !== 'collecting' || view !== 'manager') return;
+        deletingIndex = index;
+        deletionName.textContent = reply.name;
+        showView('delete');
+      });
+      card.append(name, button, remove);
+      grid.insertBefore(card, add);
     });
     send.disabled = replies.length === 0 || state !== 'collecting';
     confirmSend.disabled = send.disabled;
@@ -283,7 +309,8 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     form.reset();
     showErrors({});
     dialogTitle.textContent = `Invitat ${(index ?? replies.length) + 1}`;
-    submit.textContent = index === null ? '→' : 'Guardar modificacions';
+    if (index === null) submit.innerHTML = iconMarkup('arrow');
+    else submit.textContent = 'Guardar modificacions';
     submit.setAttribute('aria-label', index === null ? 'Guardar resposta' : 'Guardar modificacions');
     if (index !== null) {
       const reply = replies[index];
@@ -310,7 +337,11 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
       showErrors({});
       updateAttendance();
       showManager();
-    } else if (view === 'review') showManager();
+    } else if (view === 'review' || view === 'delete') {
+      if (view === 'delete') savedIndex = deletingIndex;
+      deletingIndex = null;
+      showManager();
+    }
     else dialog.close();
   };
 
@@ -320,7 +351,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     pending = null;
     setState('collecting');
     replies = [];
-    editingIndex = savedIndex = null;
+    editingIndex = savedIndex = deletingIndex = null;
     attempted = false;
     dialog.close();
     loading.close();
@@ -344,10 +375,24 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   add.addEventListener('click', () => openGuest());
   root.querySelector('#close-guest-dialog').addEventListener('click', requestClose);
   root.querySelector('#continue-replies').addEventListener('click', showManager);
+  root.querySelector('#cancel-delete-guest').addEventListener('click', () => {
+    savedIndex = deletingIndex;
+    deletingIndex = null;
+    showManager();
+  });
+  root.querySelector('#confirm-delete-guest').addEventListener('click', () => {
+    if (state !== 'collecting' || view !== 'delete' || deletingIndex === null) return;
+    const index = deletingIndex;
+    replies.splice(index, 1);
+    deletingIndex = null;
+    savedIndex = replies.length ? Math.min(index, replies.length - 1) : null;
+    renderGuests();
+    showManager();
+  });
   root.querySelector('#another-guest').addEventListener('click', () => openGuest());
   dialog.addEventListener('cancel', event => {
     if (view === 'another' || state === 'sending') event.preventDefault();
-    else if (view === 'guest' || view === 'review') { event.preventDefault(); requestClose(); }
+    else if (view === 'guest' || view === 'review' || view === 'delete') { event.preventDefault(); requestClose(); }
   });
   dialog.addEventListener('close', () => trigger.focus({ preventScroll: true }));
   errorToggle.addEventListener('click', () => {
