@@ -1,105 +1,235 @@
 const RSVP = Object.freeze({
   allowedOrigins: ['https://e1d8.github.io'],
+  responseSheet: 'RESPOSTES',
   guestsSheet: 'Invitats',
   summarySheet: 'Recompte',
+  timeZone: 'Europe/Madrid',
   maxGuests: 50,
   lockWaitMs: 3000,
+  version: 2,
 });
-const HEADERS = ['Nom', 'Asistirà', 'Bus', 'Menu especial', 'Timestamp'];
-const BUS = Object.freeze({
-  none: 'No',
-  outbound: 'Anada',
-  'return-midnight': 'Anada+Tornada(00:00)',
-  'return-two': 'Anada+Tornada(02:00)',
-});
+const HEADERS = ['Nom', 'Asistirà', 'Bus anada', 'Bus tornada', 'Menu especial', 'Timestamp'];
+const BUS_OUTBOUND = '13:30';
+const BUS_RETURN_TIMES = ['00:00', '02:00'];
+const DATE_FORMAT = 'dd/MM/yyyy HH:mm:ss';
+const READY_PROPERTY = 'RSVP2_READY';
+const RESET_KEY = 'sarapau-rsvp-v2-reset';
+const COMMIT_PREFIX = 'sarapau-rsvp-v2:';
 
-// Executa esta funció una vegada des del projecte vinculat al Google Sheet.
-// Es pot repetir: conserva les respostes existents i actualitza els formats.
+// Configuració ordinària. No esborra les files dels invitats ni de l’històric.
 function setupSpreadsheet() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  if (!spreadsheet) throw new Error('Obri Apps Script des d’Extensions del Google Sheet.');
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const properties = PropertiesService.getScriptProperties();
-    const currentId = properties.getProperty('SPREADSHEET_ID');
-    if (currentId && currentId !== spreadsheet.getId()) throw new Error('Este projecte ja està vinculat a un altre full.');
-    let guests = spreadsheet.getSheetByName(RSVP.guestsSheet);
-    if (!guests) {
-      const first = spreadsheet.getSheets()[0];
-      guests = first.getLastRow() === 0 ? first.setName(RSVP.guestsSheet) : spreadsheet.insertSheet(RSVP.guestsSheet, 0);
+    const { spreadsheet, properties } = boundSpreadsheet_();
+    for (const name of [RSVP.responseSheet, RSVP.guestsSheet]) {
+      const sheet = spreadsheet.getSheetByName(name);
+      if (sheet && sheet.getLastRow() > 0) checkHeaders_(sheet);
     }
-    if (guests.getLastRow() === 0) guests.getRange(1, 1, 1, 5).setValues([HEADERS]);
-    checkHeaders_(guests);
-    spreadsheet.setSpreadsheetTimeZone('Europe/Madrid');
-    guests.setFrozenRows(1);
-    guests.setTabColor('#636B2F');
-    guests.getRange(1, 1, 1, 5).setBackground('#636B2F').setFontColor('#ffffff').setFontWeight('bold');
-    [240, 105, 240, 360, 180].forEach((width, index) => guests.setColumnWidth(index + 1, width));
-    ensureRows_(guests, 2);
-    formatGuests_(guests, 2, guests.getMaxRows() - 1);
-    const summary = spreadsheet.getSheetByName(RSVP.summarySheet) || spreadsheet.insertSheet(RSVP.summarySheet, 1);
-    summary.getRange(1, 1, 5, 2).setValues([
-      ['Recompte', 'Persones'], ['Assistents a la boda', ''], ['Bus d’anada', ''],
-      ['Bus de tornada (00:00)', ''], ['Bus de tornada (02:00)', ''],
-    ]);
-    summary.getRange(2, 2, 4, 1).setFormulas(summaryFormulas_().map(formula => [formula]));
-    summary.getRange(1, 1, 1, 2).setBackground('#636B2F').setFontColor('#ffffff').setFontWeight('bold');
-    summary.getRange(2, 2, 4, 1).setNumberFormat('0');
-    summary.setColumnWidth(1, 290);
-    summary.setColumnWidth(2, 110);
-    summary.setFrozenRows(1);
-    summary.setTabColor('#BAC095');
-    properties.setProperty('SPREADSHEET_ID', spreadsheet.getId());
-    SpreadsheetApp.flush();
-    return 'Configuració completada: Invitats i Recompte.';
-  } finally { lock.releaseLock(); }
+    return configureSheets_(spreadsheet, properties, ensureSheets_(spreadsheet));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Reinici explícit de les tres pestanyes de l’RSVP. Executar des de l’editor
+// del full vinculat, abans de desplegar la versió nova del formulari.
+function resetRsvpSpreadsheet() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const { spreadsheet, properties } = boundSpreadsheet_();
+    if (properties.getProperty(READY_PROPERTY) === String(RSVP.version)) {
+      return 'El full ja està configurat amb el protocol 2. El reinici està tancat.';
+    }
+    const id = spreadsheet.getId();
+    const reset = findMetadata_(id, { metadataKey: RESET_KEY });
+    if (!reset) {
+      // La marca permet reprendre la configuració si l’execució es talla
+      // després de buidar les dades, sense tornar a buidar cap pestanya.
+      const sheets = ensureSheets_(spreadsheet);
+      for (const sheet of [sheets.responses, sheets.guests]) ensureColumns_(sheet, HEADERS.length);
+      SpreadsheetApp.flush();
+      const requests = Object.values(sheets).map(sheet => ({
+        updateCells: {
+          range: { sheetId: sheet.getSheetId() },
+          rows: sheet === sheets.summary ? [] : [{
+            values: HEADERS.map(header => ({ userEnteredValue: { stringValue: header } })),
+          }],
+          fields: 'userEnteredValue,userEnteredFormat,dataValidation,note',
+        },
+      }));
+      requests.push(createMetadataRequest_(id, RESET_KEY, String(RSVP.version)));
+      Sheets.Spreadsheets.batchUpdate({ requests }, id);
+    }
+    return configureSheets_(spreadsheet, properties, ensureSheets_(spreadsheet));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function boundSpreadsheet_() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  if (!spreadsheet) fail_('NOT_BOUND');
+  const properties = PropertiesService.getScriptProperties();
+  const currentId = properties.getProperty('SPREADSHEET_ID');
+  if (currentId && currentId !== spreadsheet.getId()) fail_('WRONG_SPREADSHEET');
+  const ownerEmail = spreadsheet.getOwner()?.getEmail();
+  if (!ownerEmail || ownerEmail !== Session.getEffectiveUser().getEmail()) fail_('OWNER_REQUIRED');
+  checkSheetsService_(spreadsheet.getId());
+  return { spreadsheet, properties };
+}
+
+function checkSheetsService_(id) {
+  if (typeof Sheets === 'undefined') fail_('SHEETS_API_UNAVAILABLE');
+  Sheets.Spreadsheets.get(id, { fields: 'spreadsheetId' });
+}
+
+function ensureSheets_(spreadsheet) {
+  let guests = spreadsheet.getSheetByName(RSVP.guestsSheet);
+  if (!guests) {
+    const sheets = spreadsheet.getSheets();
+    const first = sheets[0];
+    const reusable = sheets.length === 1 && first.getLastRow() === 0 &&
+      ![RSVP.responseSheet, RSVP.summarySheet].includes(first.getName());
+    guests = reusable ? first.setName(RSVP.guestsSheet) : spreadsheet.insertSheet(RSVP.guestsSheet, 0);
+  }
+  const responses = spreadsheet.getSheetByName(RSVP.responseSheet) || spreadsheet.insertSheet(RSVP.responseSheet, 0);
+  const summary = spreadsheet.getSheetByName(RSVP.summarySheet) || spreadsheet.insertSheet(RSVP.summarySheet);
+  return { responses, guests, summary };
+}
+
+function configureSheets_(spreadsheet, properties, { responses, guests, summary }) {
+  spreadsheet.setSpreadsheetTimeZone(RSVP.timeZone);
+  for (const sheet of [responses, guests]) {
+    ensureColumns_(sheet, HEADERS.length);
+    if (sheet.getMaxRows() < 2) sheet.insertRowsAfter(sheet.getMaxRows(), 1);
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    styleHeader_(sheet, HEADERS.length);
+    sheet.setTabColor('#636B2F');
+    [240, 105, 135, 135, 360, 180].forEach((width, index) => sheet.setColumnWidth(index + 1, width));
+    const count = sheet.getMaxRows() - 1;
+    sheet.getRange(2, 1, count, 1).setNumberFormat('@');
+    sheet.getRange(2, 2, count, 1).setDataValidation(
+      SpreadsheetApp.newDataValidation().requireCheckbox().setAllowInvalid(false).build());
+    sheet.getRange(2, 3, count, 1).setNumberFormat('@').setDataValidation(busValidation_(['No', BUS_OUTBOUND]));
+    sheet.getRange(2, 4, count, 1).setNumberFormat('@').setDataValidation(busValidation_(['No', ...BUS_RETURN_TIMES]));
+    sheet.getRange(2, 5, count, 1).setNumberFormat('@').setWrap(true);
+    sheet.getRange(2, 6, count, 1).setNumberFormat(DATE_FORMAT);
+  }
+  if (summary.getMaxRows() < 5) summary.insertRowsAfter(summary.getMaxRows(), 5 - summary.getMaxRows());
+  ensureColumns_(summary, 2);
+  summary.getRange(1, 1, 5, 2).setValues([
+    ['Recompte', 'Persones'], ['Assistents a la boda', ''], ['Bus d’anada', ''],
+    ['Bus de tornada (00:00)', ''], ['Bus de tornada (02:00)', ''],
+  ]);
+  summary.getRange(2, 2, 4, 1).setFormulas(summaryFormulas_().map(formula => [formula]));
+  styleHeader_(summary, 2);
+  summary.getRange(2, 2, 4, 1).setNumberFormat('0');
+  summary.setColumnWidth(1, 290);
+  summary.setColumnWidth(2, 110);
+  summary.setTabColor('#BAC095');
+  protectSheet_(responses);
+  protectSheet_(summary);
+  SpreadsheetApp.flush();
+  if (properties.getProperty(READY_PROPERTY) !== String(RSVP.version)) {
+    // El format nou conserva l’estat dels lots en les metadades del full.
+    for (const key of Object.keys(properties.getProperties())) {
+      if (key.startsWith('RSVP_')) properties.deleteProperty(key);
+    }
+  }
+  properties.setProperties({ SPREADSHEET_ID: spreadsheet.getId(), [READY_PROPERTY]: String(RSVP.version) });
+  return 'Configuració completada: RESPOSTES, Invitats i Recompte.';
+}
+
+function styleHeader_(sheet, width) {
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, width).setBackground('#636B2F').setFontColor('#ffffff').setFontWeight('bold');
+}
+
+function ensureColumns_(sheet, width) {
+  const count = sheet.getMaxColumns();
+  if (count < width) sheet.insertColumnsAfter(count, width - count);
+}
+
+function busValidation_(values) {
+  return SpreadsheetApp.newDataValidation().requireValueInList(values, true).setAllowInvalid(false).build();
+}
+
+function protectSheet_(sheet) {
+  const protections = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
+  const protection = protections[0] || sheet.protect();
+  protection.setDescription('Sara i Pau · ' + sheet.getName());
+  protection.setWarningOnly(false);
+  protection.setUnprotectedRanges([]);
+  const owner = Session.getEffectiveUser();
+  protection.addEditor(owner);
+  const otherEditors = protection.getEditors().filter(editor => editor.getEmail() !== owner.getEmail());
+  if (otherEditors.length) protection.removeEditors(otherEditors);
+  if (protection.canDomainEdit()) protection.setDomainEdit(false);
 }
 
 function summaryFormulas_() {
-  // Un sol argument evita els conflictes de comes/punts i coma entre regions.
-  const attending = '(Invitats!B2:B=TRUE)';
-  const busIs = label => '(Invitats!C2:C="' + label + '")';
-  const sum = expression => '=SUMPRODUCT(' + expression + ')';
+  // Un sol argument evita dependre del separador regional del full.
+  const attending = '(Invitats!A2:A<>"")*(Invitats!B2:B=TRUE)';
+  const count = condition => '=SUMPRODUCT(' + attending + condition + ')';
   return [
-    sum(attending + '*1'),
-    sum(attending + '*(' + [BUS.outbound, BUS['return-midnight'], BUS['return-two']].map(busIs).join('+') + ')'),
-    sum(attending + '*' + busIs(BUS['return-midnight'])),
-    sum(attending + '*' + busIs(BUS['return-two'])),
+    count(''),
+    count('*(Invitats!C2:C="' + BUS_OUTBOUND + '")'),
+    ...BUS_RETURN_TIMES.map(time => count('*(Invitats!D2:D="' + time + '")')),
   ];
 }
 
 function doGet() {
-  return HtmlService.createHtmlOutput('<p>Servei RSVP de Sara i Pau actiu. Protocol 1.</p>');
+  return HtmlService.createHtmlOutput('<p>Servei RSVP de Sara i Pau actiu. Protocol 2.</p>');
 }
 
-// Diagnòstic manual des de l'editor: llig configuració i capçaleres,
-// sense afegir invitats ni mostrar-ne dades.
+// Diagnòstic de lectura. No mostra els valors de cap resposta.
 function diagnoseSetup() {
-  const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
-  if (!id) fail_('NOT_CONFIGURED');
+  const { spreadsheet, responses, guests, summary } = configuredSheets_();
   const active = SpreadsheetApp.getActiveSpreadsheet();
-  if (active && active.getId() !== id) fail_('WRONG_SPREADSHEET');
-  const spreadsheet = SpreadsheetApp.openById(id);
-  const sheet = spreadsheet.getSheetByName(RSVP.guestsSheet);
-  if (!sheet) fail_('NOT_CONFIGURED');
-  checkHeaders_(sheet);
-  if (!spreadsheet.getSheetByName(RSVP.summarySheet)) fail_('SUMMARY_MISSING');
-  const lastDataRow = sheet.getLastRow();
-  const data = guestRows_(sheet);
-  const namedRows = data.map((row, index) => row[0] !== '' && row[0] !== null ? index + 2 : null).filter(row => row !== null);
-  const nextReservedRow = Number(PropertiesService.getScriptProperties().getProperty('RSVP_NEXT_ROW')) || 2;
+  if (active && active.getId() !== spreadsheet.getId()) fail_('WRONG_SPREADSHEET');
+  checkSheetsService_(spreadsheet.getId());
+  const protectedSheets = [responses, summary].filter(sheet =>
+    sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET).some(protection =>
+      !protection.isWarningOnly() && protection.getUnprotectedRanges().length === 0 && !protection.canDomainEdit()));
+  if (protectedSheets.length !== 2) fail_('PROTECTION_MISSING');
   const result = {
-    status: 'OK', allowedOrigins: RSVP.allowedOrigins, sheets: [RSVP.guestsSheet, RSVP.summarySheet],
+    status: 'OK', version: RSVP.version, allowedOrigins: RSVP.allowedOrigins,
+    sheets: [RSVP.responseSheet, RSVP.guestsSheet, RSVP.summarySheet],
+    protectedSheets: protectedSheets.map(sheet => sheet.getName()),
     destinationMatchesActiveSpreadsheet: active ? true : null,
-    lastDataRow: lastDataRow, nextReservedRow: nextReservedRow,
-    guestCount: namedRows.length, firstGuestRow: namedRows[0] || null,
-    lastGuestRow: namedRows.length ? namedRows[namedRows.length - 1] : null,
-    checkboxOnlyRows: data.filter(row => unusedGuestRow_(row) && row[1] === false).length,
-    nextWriteRow: findFreeRows_(sheet, PropertiesService.getScriptProperties(), 1, data),
+    responseCount: namedRows_(responses), guestCount: namedRows_(guests),
   };
   console.info(JSON.stringify(result));
   return result;
+}
+
+function configuredSheets_() {
+  const properties = PropertiesService.getScriptProperties();
+  const id = properties.getProperty('SPREADSHEET_ID');
+  if (!id || properties.getProperty(READY_PROPERTY) !== String(RSVP.version)) fail_('NOT_CONFIGURED');
+  const spreadsheet = SpreadsheetApp.openById(id);
+  const responses = spreadsheet.getSheetByName(RSVP.responseSheet);
+  const guests = spreadsheet.getSheetByName(RSVP.guestsSheet);
+  const summary = spreadsheet.getSheetByName(RSVP.summarySheet);
+  if (!responses || !guests) fail_('NOT_CONFIGURED');
+  checkHeaders_(responses);
+  checkHeaders_(guests);
+  if (!summary) fail_('SUMMARY_MISSING');
+  return { spreadsheet, responses, guests, summary };
+}
+
+function checkHeaders_(sheet) {
+  if (sheet.getLastColumn() < HEADERS.length ||
+      JSON.stringify(sheet.getRange(1, 1, 1, HEADERS.length).getValues()[0]) !== JSON.stringify(HEADERS)) {
+    fail_('INVALID_HEADERS');
+  }
+}
+
+function namedRows_(sheet) {
+  const rows = sheet.getLastRow() - 1;
+  return rows > 0 ? sheet.getRange(2, 1, rows, 1).getValues().filter(([name]) => name !== '').length : 0;
 }
 
 function doPost(event) {
@@ -107,140 +237,144 @@ function doPost(event) {
   try {
     const raw = event && event.parameter && event.parameter.payload;
     if (typeof raw !== 'string' || raw.length > 120000) fail_('INVALID_PAYLOAD');
-    payload = JSON.parse(raw);
+    try { payload = JSON.parse(raw); } catch (error) { fail_('INVALID_PAYLOAD'); }
     const request = validatePayload_(payload);
-    const receipt = saveGuests_(request);
-    return receiptHtml_(request.replyTo, request.requestId, receipt);
+    return receiptHtml_(request.replyTo, request.requestId, saveGuests_(request));
   } catch (error) {
     const code = error.code || 'SERVER_ERROR';
     console.error('RSVP: ' + code); // No registrar noms ni necessitats alimentàries.
     const locations = String(error.stack || '').split('\n').filter(line => /^\s*at\s/.test(line)).join('\n');
     if (locations) console.error('RSVP location:\n' + locations);
-    if (payload && RSVP.allowedOrigins.indexOf(payload.replyTo) !== -1 && validRequestId_(payload.requestId)) {
-      return receiptHtml_(payload.replyTo, payload.requestId, { received: false, count: 0, error: code });
+    if (payload && RSVP.allowedOrigins.includes(payload.replyTo) && validRequestId_(payload.requestId)) {
+      const receipt = { received: false, count: 0, error: code };
+      if (code === 'VERSION_UNSUPPORTED') receipt.message = 'Recarrega la invitació per a tornar a respondre.';
+      return receiptHtml_(payload.replyTo, payload.requestId, receipt);
     }
     return HtmlService.createHtmlOutput('<p>No s’ha pogut processar la resposta.</p>');
   }
 }
 
 function validatePayload_(payload) {
-  if (!payload || payload.version !== 1 || !validRequestId_(payload.requestId) ||
-      RSVP.allowedOrigins.indexOf(payload.replyTo) === -1 || !Array.isArray(payload.guests) ||
-      payload.guests.length < 1 || payload.guests.length > RSVP.maxGuests) fail_('INVALID_PAYLOAD');
+  if (!payload || !validRequestId_(payload.requestId) || !RSVP.allowedOrigins.includes(payload.replyTo)) {
+    fail_('INVALID_PAYLOAD');
+  }
+  if (payload.version !== RSVP.version) fail_('VERSION_UNSUPPORTED');
+  if (!Array.isArray(payload.guests) || payload.guests.length < 1 || payload.guests.length > RSVP.maxGuests) {
+    fail_('INVALID_PAYLOAD');
+  }
   const guests = payload.guests.map(guest => {
     if (!guest || typeof guest.name !== 'string' || !guest.name.trim() || guest.name.trim().length > 160 ||
         typeof guest.attending !== 'boolean' || typeof guest.dietary !== 'string' || guest.dietary.length > 1500 ||
-        (guest.attending && !Object.prototype.hasOwnProperty.call(BUS, guest.bus))) fail_('INVALID_GUEST');
+        typeof guest.busOutbound !== 'boolean' ||
+        (guest.busReturnTime !== null && !BUS_RETURN_TIMES.includes(guest.busReturnTime))) fail_('INVALID_GUEST');
     return {
       name: guest.name.trim(), attending: guest.attending,
-      bus: guest.attending ? guest.bus : 'none', dietary: guest.attending ? guest.dietary.trim() : '',
+      busOutbound: guest.attending && guest.busOutbound,
+      busReturnTime: guest.attending ? guest.busReturnTime : null,
+      dietary: guest.attending ? guest.dietary.trim() : '',
     };
   });
-  return { requestId: payload.requestId, replyTo: payload.replyTo, guests: guests };
+  return { requestId: payload.requestId, replyTo: payload.replyTo, guests };
 }
 
 function saveGuests_(request) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(RSVP.lockWaitMs)) fail_('BUSY');
   try {
-    const properties = PropertiesService.getScriptProperties();
-    const spreadsheetId = properties.getProperty('SPREADSHEET_ID');
-    if (!spreadsheetId) fail_('NOT_CONFIGURED');
-    const sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName(RSVP.guestsSheet);
-    if (!sheet) fail_('NOT_CONFIGURED');
-    checkHeaders_(sheet);
-    const key = 'RSVP_' + request.requestId;
-    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(request.guests), Utilities.Charset.UTF_8)
-      .map(byte => ('0' + ((byte + 256) % 256).toString(16)).slice(-2)).join('');
-    const previous = properties.getProperty(key);
-    let record = previous ? JSON.parse(previous) : null;
-    if (record && (record.digest !== digest || record.count !== request.guests.length)) fail_('REQUEST_CONFLICT');
-    if (record && record.state === 'done') return { received: true, count: record.count };
-    if (!record) {
-      const row = findFreeRows_(sheet, properties, request.guests.length);
-      record = { row: row, count: request.guests.length, digest: digest, timestamp: Date.now(), state: 'pending' };
-      // La reserva impedix que una altra petició ocupe les mateixes files
-      // si una execució s'interromp entre l'escriptura i la confirmació.
-      const reservation = {};
-      reservation[key] = JSON.stringify(record);
-      reservation.RSVP_NEXT_ROW = String(row + record.count);
-      properties.setProperties(reservation);
+    const { spreadsheet, responses, guests } = configuredSheets_();
+    const id = spreadsheet.getId();
+    if (typeof Sheets === 'undefined') fail_('SHEETS_API_UNAVAILABLE');
+    const key = COMMIT_PREFIX + request.requestId;
+    const digest = sha256_(JSON.stringify(request.guests));
+    const receipt = { received: true, count: request.guests.length };
+    if (hasCommit_(id, key, digest)) return receipt;
+
+    const timestamp = spreadsheetDate_(new Date());
+    const rows = request.guests.map(guest => guestCells_(guest, timestamp));
+    const requests = [responses, guests].map(sheet => ({
+      appendCells: { sheetId: sheet.getSheetId(), rows, fields: 'userEnteredValue,userEnteredFormat,dataValidation' },
+    }));
+    requests.push(createMetadataRequest_(id, key, digest));
+    try {
+      // Un únic lot escriu les dos pestanyes i confirma la mateixa operació.
+      Sheets.Spreadsheets.batchUpdate({ requests }, id);
+    } catch (error) {
+      // La resposta de Sheets pot perdre’s després que el lot s’haja guardat.
+      if (!hasCommit_(id, key, digest)) throw error;
     }
-    ensureRows_(sheet, record.row + record.count - 1);
-    const rawRows = request.guests.map(guest => [guest.name, guest.attending, BUS[guest.bus], guest.dietary, new Date(record.timestamp)]);
-    const range = sheet.getRange(record.row, 1, record.count, 5);
-    const current = range.getValues();
-    if (!current.every((row, index) => unusedGuestRow_(row) || row.every((cell, column) => {
-      const expected = rawRows[index][column];
-      return cell === '' || cell === null || (column === 4 ? cell instanceof Date && cell.getTime() === expected.getTime() : cell === expected);
-    }))) fail_('RESERVATION_CONFLICT');
-    formatGuests_(sheet, record.row, record.count);
-    const rows = rawRows.map(row => [plainText_(row[0]), row[1], row[2], plainText_(row[3]), row[4]]);
-    range.setValues(rows); // Una fila per invitat, totes les files del cercle en un sol lot.
-    SpreadsheetApp.flush(); // Confirmar l'escriptura abans de donar l'èxit i alliberar el bloqueig.
-    record.state = 'done';
-    properties.setProperty(key, JSON.stringify(record));
-    return { received: true, count: record.count };
-  } finally { lock.releaseLock(); }
-}
-
-function checkHeaders_(sheet) {
-  if (sheet.getLastColumn() > 5 || JSON.stringify(sheet.getRange(1, 1, 1, 5).getValues()[0]) !== JSON.stringify(HEADERS)) fail_('INVALID_HEADERS');
-}
-
-function guestRows_(sheet) {
-  const count = Math.max(0, sheet.getLastRow() - 1);
-  return count ? sheet.getRange(2, 1, count, 5).getValues() : [];
-}
-
-function unusedGuestRow_(row) {
-  const blank = value => value === '' || value === null;
-  // FALSE és l'estat d'una casella buida, no una resposta d'un invitat.
-  return blank(row[0]) && (blank(row[1]) || row[1] === false) &&
-    (blank(row[2]) || row[2] === BUS.none) && blank(row[3]) && blank(row[4]);
-}
-
-function findFreeRows_(sheet, properties, count, data) {
-  const occupied = new Set();
-  (data || guestRows_(sheet)).forEach((row, index) => { if (!unusedGuestRow_(row)) occupied.add(index + 2); });
-  // Protegir també els lots reservats però encara no escrits. El punter antic
-  // RSVP_NEXT_ROW pot apuntar al final de les caselles i no determina l'inici.
-  const saved = properties.getProperties();
-  Object.keys(saved).filter(key => key.indexOf('RSVP_') === 0 && key !== 'RSVP_NEXT_ROW').forEach(key => {
-    let record;
-    try { record = JSON.parse(saved[key]); } catch (error) { fail_('INVALID_RESERVATION'); }
-    if (!record || !Number.isInteger(record.row) || record.row < 2 || !Number.isInteger(record.count) || record.count < 1 || record.count > 10000) fail_('INVALID_RESERVATION');
-    for (let row = record.row; row < record.row + record.count; row++) occupied.add(row);
-  });
-  let free = 0;
-  for (let row = 2; ; row++) {
-    free = occupied.has(row) ? 0 : free + 1;
-    if (free === count) return row - count + 1;
+    return receipt;
+  } finally {
+    lock.releaseLock();
   }
 }
 
-function ensureRows_(sheet, lastRow) {
-  if (lastRow > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), lastRow - sheet.getMaxRows());
+function findMetadata_(id, developerMetadataLookup) {
+  const result = Sheets.Spreadsheets.DeveloperMetadata.search({ dataFilters: [{ developerMetadataLookup }] }, id);
+  return result.matchedDeveloperMetadata?.[0]?.developerMetadata;
 }
 
-function formatGuests_(sheet, row, count) {
-  sheet.getRange(row, 1, count, 1).setNumberFormat('@');
-  sheet.getRange(row, 4, count, 1).setNumberFormat('@').setWrap(true);
-  sheet.getRange(row, 5, count, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
-  sheet.getRange(row, 2, count, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().setAllowInvalid(false).build());
-  sheet.getRange(row, 3, count, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(Object.values(BUS), true).setAllowInvalid(false).build());
+function hasCommit_(id, key, digest) {
+  const marker = findMetadata_(id, { metadataKey: key });
+  if (marker && marker.metadataValue !== digest) fail_('REQUEST_CONFLICT');
+  return !!marker;
 }
 
-function plainText_(value) {
-  // Tractar les entrades com a text, incloses les que comencen com una fórmula.
-  return /^[=+\-@']/.test(value) ? "'" + value : value;
+function createMetadataRequest_(id, key, value) {
+  // Un ID repetible evita duplicar files si hi ha un reintent mentre Sheets
+  // acaba d'escriure el primer lot. Sheets rebutja un lot amb un ID duplicat.
+  const max = 2147483647;
+  let metadataId = (parseInt(sha256_(key).slice(0, 8), 16) % max) + 1;
+  let occupied = findMetadata_(id, { metadataId });
+  while (occupied && occupied.metadataKey !== key) {
+    metadataId = metadataId % max + 1;
+    occupied = findMetadata_(id, { metadataId });
+  }
+  return {
+    createDeveloperMetadata: {
+      developerMetadata: { metadataId, metadataKey: key, metadataValue: value, location: { spreadsheet: true }, visibility: 'PROJECT' },
+    },
+  };
+}
+
+function sha256_(value) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, value, Utilities.Charset.UTF_8)
+    .map(byte => ('0' + ((byte + 256) % 256).toString(16)).slice(-2)).join('');
+}
+
+function spreadsheetDate_(date) {
+  const offset = Utilities.formatDate(date, RSVP.timeZone, 'Z');
+  const minutes = (offset[0] === '-' ? -1 : 1) * (Number(offset.slice(1, 3)) * 60 + Number(offset.slice(3, 5)));
+  return 25569 + (date.getTime() + minutes * 60000) / 86400000;
+}
+
+function guestCells_(guest, timestamp) {
+  // Tipar com a text preserva les hores i impedix interpretar noms o dietes com fórmules.
+  const textCell = (value, format = {}) => ({
+    userEnteredValue: { stringValue: value },
+    userEnteredFormat: { numberFormat: { type: 'TEXT' }, ...format },
+  });
+  const busCell = (value, options) => ({
+    ...textCell(value),
+    dataValidation: {
+      condition: { type: 'ONE_OF_LIST', values: options.map(option => ({ userEnteredValue: option })) },
+      strict: true, showCustomUi: true,
+    },
+  });
+  return { values: [
+    textCell(guest.name),
+    { userEnteredValue: { boolValue: guest.attending }, dataValidation: { condition: { type: 'BOOLEAN' }, strict: true, showCustomUi: true } },
+    busCell(guest.busOutbound ? BUS_OUTBOUND : 'No', ['No', BUS_OUTBOUND]),
+    busCell(guest.busReturnTime ?? 'No', ['No', ...BUS_RETURN_TIMES]),
+    textCell(guest.dietary, { wrapStrategy: 'WRAP' }),
+    { userEnteredValue: { numberValue: timestamp }, userEnteredFormat: { numberFormat: { type: 'DATE_TIME', pattern: DATE_FORMAT } } },
+  ] };
 }
 
 function validRequestId_(value) { return typeof value === 'string' && /^[A-Za-z0-9_-]{20,80}$/.test(value); }
 function fail_(code) { const error = new Error(code); error.code = code; throw error; }
 
 function receiptHtml_(origin, requestId, receipt) {
-  const message = Object.assign({ type: 'sarapau:rsvp:receipt', version: 1, requestId: requestId }, receipt);
+  const message = { type: 'sarapau:rsvp:receipt', version: 1, requestId, ...receipt };
   const json = JSON.stringify(message).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   return HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>window.top.postMessage(' + json + ',' + JSON.stringify(origin) + ');</script>')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);

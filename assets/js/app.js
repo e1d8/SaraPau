@@ -34,8 +34,18 @@ function rsvp() {
         <div class="form-field"><label for="guest-name">Nom i cognoms <span aria-hidden="true">*</span></label><textarea class="auto-grow" id="guest-name" name="name" rows="1" required maxlength="160" autocomplete="off" aria-describedby="form-status"></textarea></div>
         <fieldset class="attendance"><legend>Mos acompanyaràs? <span aria-hidden="true">*</span></legend><label class="radio-label"><input type="radio" name="attendance" value="yes" required aria-describedby="form-status">${icon('check', 'radio-tick')}<span>Sí, allí estaré!</span></label><label class="radio-label"><input type="radio" name="attendance" value="no" required aria-describedby="form-status">${icon('check', 'radio-tick')}<span>No podré vindre</span></label></fieldset>
         <div id="attendance-fields" hidden>
-          <fieldset class="bus-choice"><legend>Te farà falta bus per anar i tornar? <span aria-hidden="true">*</span></legend>${w.busOptions.map(option => `<label class="radio-label"><input type="radio" name="bus" value="${escape(option.value)}" disabled aria-describedby="form-status">${icon('check', 'radio-tick')}<span>${escape(option.label)}</span></label>`).join('')}</fieldset>
-          <div class="form-field"><label for="dietary">Al·lèrgies, intoleràncies, dieta vegetariana, vegana...?</label><textarea class="auto-grow" id="dietary" name="dietary" rows="1" maxlength="1500" disabled></textarea></div>
+          <fieldset class="bus-choice">
+            <legend>Utilitzaries el bus?</legend>
+            <div class="bus-options">
+              <label class="radio-label"><input type="checkbox" name="busOutbound" disabled>${icon('check', 'radio-tick')}<span>Anada</span></label>
+              <label class="radio-label"><input type="checkbox" name="busReturn" aria-controls="bus-return-hours" disabled>${icon('check', 'radio-tick')}<span>Tornada</span></label>
+            </div>
+            <fieldset class="bus-return-hours" id="bus-return-hours" hidden>
+              <legend>Hora de tornada <span aria-hidden="true">*</span></legend>
+              <div class="bus-options">${w.busReturnTimes.map(time => `<label class="radio-label"><input type="radio" name="busReturnTime" value="${escape(time)}" disabled aria-describedby="form-status">${icon('check', 'radio-tick')}<span>${escape(time)}</span></label>`).join('')}</div>
+            </fieldset>
+          </fieldset>
+          <div class="form-field"><label for="dietary">Dieta especial?</label><textarea class="auto-grow" id="dietary" name="dietary" rows="1" maxlength="1500" placeholder="Al·lèrgies, intoleràncies, dieta vegetariana, vegana..." disabled></textarea></div>
         </div>
         <p class="field-error form-status" id="form-status" role="status" aria-live="polite" hidden></p>
         </div>

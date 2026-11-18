@@ -51,7 +51,8 @@ export function sendToGoogleSheets(replies, { endpoint, signal, requestId = cryp
     const guests = replies.map(reply => ({
       name: reply.name,
       attending: reply.attendance === 'yes',
-      bus: reply.attendance === 'yes' ? reply.bus : 'none',
+      busOutbound: reply.attendance === 'yes' && reply.busOutbound,
+      busReturnTime: reply.attendance === 'yes' ? reply.busReturnTime : null,
       dietary: reply.attendance === 'yes' ? reply.dietary : '',
     }));
     const frame = document.createElement('iframe');
@@ -70,7 +71,7 @@ export function sendToGoogleSheets(replies, { endpoint, signal, requestId = cryp
     const input = document.createElement('input');
     input.type = 'hidden';
     input.name = 'payload';
-    input.value = JSON.stringify({ version: 1, requestId, replyTo: location.origin, guests });
+    input.value = JSON.stringify({ version: 2, requestId, replyTo: location.origin, guests });
     form.append(input);
     let settled = false;
     const finish = (error, receipt) => {

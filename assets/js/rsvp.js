@@ -3,11 +3,13 @@ import { wedding } from './content.js';
 import { rsvpConfig } from './rsvp-config.js';
 import { sendToGoogleSheets, RSVP_TIMEOUT_MS, RsvpError } from './google-sheets.js';
 
-export function validateReply({ name, attendance, bus }) {
+export function validateReply({ name, attendance, busReturnTime = null }) {
   const errors = {};
   if (!name?.trim()) errors.name = true;
   if (!['yes', 'no'].includes(attendance)) errors.attendance = true;
-  if (attendance === 'yes' && !wedding.busOptions.some(option => option.value === bus)) errors.bus = true;
+  if (attendance === 'yes' && busReturnTime !== null && !wedding.busReturnTimes.includes(busReturnTime)) {
+    errors.busReturnTime = true;
+  }
   return errors;
 }
 
@@ -118,7 +120,10 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   const errorMessage = root.querySelector('#error-message');
   const errorTime = root.querySelector('#error-time');
   const attendanceFields = form.querySelector('#attendance-fields');
-  const busControls = [...form.querySelectorAll('[name="bus"]')];
+  const busOutbound = form.elements.busOutbound;
+  const busReturn = form.elements.busReturn;
+  const returnHours = form.querySelector('#bus-return-hours');
+  const returnTimeControls = [...form.elements.busReturnTime];
   const dietary = form.elements.dietary;
   const status = form.querySelector('#form-status');
   const textFields = [...form.querySelectorAll('textarea.auto-grow')];
@@ -225,7 +230,8 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   const readReply = () => ({
     name: form.elements.name.value.trim(),
     attendance: form.elements.attendance.value,
-    bus: form.elements.bus.value,
+    busOutbound: busOutbound.checked,
+    busReturnTime: busReturn.checked ? form.elements.busReturnTime.value : null,
     dietary: dietary.value.trim(),
   });
   const showErrors = errors => {
@@ -237,16 +243,25 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     status.textContent = invalid ? 'Els camps amb * són obligatoris.' : '';
     status.hidden = !invalid;
   };
+  const updateReturnHours = () => {
+    const showHours = !busReturn.disabled && busReturn.checked;
+    returnHours.hidden = !showHours;
+    returnTimeControls.forEach(control => {
+      control.disabled = !showHours;
+      control.required = showHours;
+      if (!showHours) control.checked = false;
+    });
+  };
   const updateAttendance = () => {
     const attending = form.elements.attendance.value === 'yes';
     attendanceFields.hidden = !attending;
-    busControls.forEach(control => {
-      control.disabled = !attending;
-      control.required = attending;
-      if (!attending) control.checked = false;
-    });
+    busOutbound.disabled = busReturn.disabled = !attending;
     dietary.disabled = !attending;
-    if (!attending) dietary.value = '';
+    if (!attending) {
+      busOutbound.checked = busReturn.checked = false;
+      dietary.value = '';
+    }
+    updateReturnHours();
     resizeTextFields();
   };
 
@@ -306,11 +321,11 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
       heading.textContent = `Invitat ${index + 1}`;
       const details = document.createElement('dl');
       const attending = reply.attendance === 'yes';
-      const bus = wedding.busOptions.find(option => option.value === reply.bus);
       const rows = [
         ['Nom', reply.name], ['Asistiràs', attending ? 'Sí' : 'No'],
-        ['Bus', attending ? bus.summary : 'No'],
-        ['Comentaris dieta', attending && reply.dietary ? reply.dietary : '—'],
+        ['Bus anada', attending && reply.busOutbound ? wedding.busOutboundTime : 'No'],
+        ['Bus tornada', attending && reply.busReturnTime ? reply.busReturnTime : 'No'],
+        ['Dieta especial', attending && reply.dietary ? reply.dietary : '—'],
       ];
       rows.forEach(([label, value]) => {
         const row = document.createElement('div');
@@ -342,10 +357,12 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
       const reply = replies[index];
       form.elements.name.value = reply.name;
       form.elements.attendance.value = reply.attendance;
-      updateAttendance();
-      form.elements.bus.value = reply.bus;
+      busOutbound.checked = reply.busOutbound;
+      busReturn.checked = reply.busReturnTime !== null;
+      form.elements.busReturnTime.value = reply.busReturnTime ?? '';
       dietary.value = reply.dietary;
-    } else updateAttendance();
+    }
+    updateAttendance();
     showView('guest');
   };
   const showManager = () => {
@@ -458,6 +475,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   });
   form.addEventListener('change', event => {
     if (event.target.name === 'attendance') updateAttendance();
+    if (event.target === busReturn) updateReturnHours();
     if (attempted) showErrors(validateReply(readReply()));
   });
   form.addEventListener('input', () => {

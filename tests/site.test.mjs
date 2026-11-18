@@ -9,19 +9,19 @@ import { rsvpConfig } from '../assets/js/rsvp-config.js';
 
 const root = resolve(import.meta.dirname, '..');
 
-test('L’RSVP exigix nom, assistència i bus quan s’hi assistix', () => {
-  assert.deepEqual(Object.keys(validateReply({ name: '  ', attendance: '', bus: '' })), ['name', 'attendance']);
-  for (const { value: bus } of wedding.busOptions) {
-    assert.deepEqual(validateReply({ name: ' Aina Ferrer ', attendance: 'yes', bus }), {});
+test('L’RSVP exigix nom i assistència, i l’hora només si es tria tornada', () => {
+  assert.deepEqual(Object.keys(validateReply({ name: '  ', attendance: '' })), ['name', 'attendance']);
+  for (const busReturnTime of [null, '00:00', '02:00']) {
+    assert.deepEqual(validateReply({ name: ' Aina Ferrer ', attendance: 'yes', busReturnTime }), {});
   }
-  assert.deepEqual(validateReply({ name: 'Aina Ferrer', attendance: 'yes', bus: '' }), { bus: true });
-  assert.deepEqual(validateReply({ name: 'Aina Ferrer', attendance: 'no', bus: '' }), {});
+  assert.deepEqual(validateReply({ name: 'Aina Ferrer', attendance: 'yes', busReturnTime: '' }), { busReturnTime: true });
+  assert.deepEqual(validateReply({ name: 'Aina Ferrer', attendance: 'no', busReturnTime: '' }), {});
   assert.ok(validateReply({ name: 'Aina Ferrer', attendance: 'maybe' }).attendance);
-  assert.ok(validateReply({ name: 'Aina Ferrer', attendance: 'yes', bus: 'unknown' }).bus);
+  assert.ok(validateReply({ name: 'Aina Ferrer', attendance: 'yes', busReturnTime: '01:00' }).busReturnTime);
 });
 
 test('L’enviament necessita recepció explícita i cancel·la el transport en esgotar el termini', async () => {
-  const replies = [{ name: 'Aina Ferrer', attendance: 'no', bus: '', dietary: '' }];
+  const replies = [{ name: 'Aina Ferrer', attendance: 'no', busOutbound: false, busReturnTime: null, dietary: '' }];
   assert.deepEqual(await sendRepliesWithTimeout(replies, {
     sendReplies: async (payload, options) => {
       assert.deepEqual(payload, replies);

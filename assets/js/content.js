@@ -25,12 +25,8 @@ export const wedding = {
     lluisos: { name: 'Lluïssos', address: 'Av. de la Mura, 12, 12540 Vila-real, Castelló' },
     celebration: { name: 'El Invernadero', address: 'Av. Gimeno Tomas, 36, 12560 Benicàssim, Castelló' },
   },
-  busOptions: [
-    { value: 'none', label: 'No, vaig per el meu conter', summary: 'No' },
-    { value: 'outbound', label: 'Tan sols a l’anar', summary: 'Anada' },
-    { value: 'return-midnight', label: 'Si, i tornaré en el de les 00:00', summary: 'Anada i tornada (00:00)' },
-    { value: 'return-two', label: 'Si, i tornaré en el de les 02:00', summary: 'Anada i tornada (02:00)' },
-  ],
+  busOutboundTime: '13:30',
+  busReturnTimes: ['00:00', '02:00'],
   photos: {
     invitation: 'couple-landscape.jpg',
     postcard: 'couple-postcard.jpg',

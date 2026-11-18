@@ -637,7 +637,7 @@ test('La barra principal se superposa al dibuix, permet arrossegar i s’oculta 
   assert.equal(await page.locator('#guest-manager').isVisible(), true);
   await close.click();
   assert.equal(await page.locator('#guest-dialog').evaluate(el => el.open), false);
-  assert.equal(await rail.isVisible(), true);
+  await rail.waitFor({ state: 'visible' });
   await page.close();
 });
 
@@ -676,13 +676,19 @@ async function openRsvp(page) {
   if (!await page.locator('#guest-dialog').evaluate(el => el.open)) await page.locator('#open-rsvp').click();
 }
 
-async function saveGuest(page, { name, attendance = 'no', bus = 'none', dietary = '' }) {
+async function selectBus(page, busOutbound, busReturnTime) {
+  await page.getByRole('checkbox', { name: 'Anada', exact: true }).setChecked(busOutbound);
+  await page.getByRole('checkbox', { name: 'Tornada', exact: true }).setChecked(busReturnTime !== null);
+  if (busReturnTime !== null) await page.getByRole('radio', { name: busReturnTime, exact: true }).check();
+}
+
+async function saveGuest(page, { name, attendance = 'no', busOutbound = false, busReturnTime = null, dietary = '' }) {
   await openRsvp(page);
   await page.getByRole('button', { name: 'Afegir invitat', exact: true }).click();
   await page.locator('#guest-name').fill(name);
   await page.getByLabel(attendance === 'yes' ? 'Sí, allí estaré!' : 'No podré vindre').check();
   if (attendance === 'yes') {
-    await page.locator(`[name="bus"][value="${bus}"]`).check();
+    await selectBus(page, busOutbound, busReturnTime);
     await page.locator('#dietary').fill(dietary);
   }
   await page.locator('#save-guest').click();
@@ -742,7 +748,7 @@ test('En mòbil totes les finestres bloquegen el fons i restauren la posició en
   await assertInnerScroll('#guest-list-scroll');
   await page.locator('.guest-edit').first().click();
   await page.getByLabel('Sí, allí estaré!').check();
-  await page.locator('[name="bus"][value="none"]').check();
+  await selectBus(page, true, '02:00');
   await page.locator('#dietary').fill('Comentari llarg\n'.repeat(8));
   await assertInnerScroll('#guest-fields');
   await page.locator('#close-guest-dialog').click();
@@ -845,7 +851,7 @@ test('Les capçaleres queden fixes i els botons compartixen tipografia i amplàr
     await page.locator('#add-guest').click();
     await page.locator('#guest-name').fill(['Invitat', 'amb', 'quatre', 'línies'].join('\n'));
     await page.getByLabel('Sí, allí estaré!').check();
-    await page.locator('[name="bus"][value="none"]').check();
+    await selectBus(page, true, '00:00');
     await page.locator('#dietary').fill(Array.from({ length: 8 }, () => 'Comentari').join('\n'));
     await assertButton('#save-guest');
     await assertPinned('#guest-fields', '#guest-dialog-title,#close-guest-dialog,#save-guest');
@@ -1117,18 +1123,32 @@ test('Vindràs descarta canvis pendents, conserva invitats i permet revisar aban
   const name = 'Aina <img src="/no-enviar"> Ferrer';
   await page.locator('#guest-name').fill(name);
   await page.getByLabel('Sí, allí estaré!').check();
+  const returnToggle = page.getByRole('checkbox', { name: 'Tornada', exact: true });
+  const returnHours = page.locator('#bus-return-hours');
+  assert.equal(await returnHours.isVisible(), false);
+  assert.equal(await page.getByLabel('Dieta especial?').getAttribute('placeholder'), 'Al·lèrgies, intoleràncies, dieta vegetariana, vegana...');
+  await returnToggle.focus();
+  await page.keyboard.press('Space');
+  assert.equal(await returnHours.isVisible(), true);
   await save.click();
-  assert.equal(await page.locator('[name="bus"][aria-invalid="true"]').count(), 4);
+  assert.equal(await returnHours.locator('[aria-invalid="true"]').count(), 2);
+  assert.equal(await page.locator('[name="busReturnTime"]:checked').count(), 0);
+  await page.getByRole('radio', { name: '00:00', exact: true }).check();
+  await returnToggle.uncheck();
+  assert.equal(await returnHours.isVisible(), false);
+  await returnToggle.check();
+  assert.equal(await page.locator('[name="busReturnTime"]:checked').count(), 0);
   let first = true;
-  for (const bus of ['none', 'outbound', 'return-midnight', 'return-two']) {
+  for (const [outbound, time] of [[false, null], [true, null], [false, '00:00'], [false, '02:00'], [true, '00:00'], [true, '02:00']]) {
     if (!first) {
       await page.locator('.guest-edit').first().click();
       assert.equal(await save.textContent(), 'Guardar modificacions');
       assert.equal(await page.locator('#guest-dialog-title').textContent(), 'Invitat 1');
       assert.equal(await page.locator('#guest-name').inputValue(), name);
     }
-    await page.locator(`[name="bus"][value="${bus}"]`).check();
-    await page.locator('#dietary').fill(bus === 'none' ? '' : 'Sense gluten');
+    await selectBus(page, outbound, time);
+    const diet = outbound || time ? 'Sense gluten' : '';
+    await page.locator('#dietary').fill(diet);
     await save.click();
     if (first) {
       assert.equal(await page.locator('#guest-saved h4').textContent(), 'Voleu respondre per un altre invitat?');
@@ -1144,24 +1164,30 @@ test('Vindràs descarta canvis pendents, conserva invitats i permet revisar aban
     assert.equal(await page.locator('#guest-manager').isVisible(), true);
     assert.equal(await page.locator('.guest-edit').count(), 1);
     assert.equal(await page.locator('.guest-name-label').first().textContent(), name);
+    await send.click();
+    assert.deepEqual(await page.locator('#reply-summary dd').allTextContents(), [name, 'Sí', outbound ? '13:30' : 'No', time ?? 'No', diet || '—']);
+    await page.locator('#close-guest-dialog').click();
     first = false;
   }
   await page.locator('.guest-edit').first().click();
-  assert.equal(await page.locator('[name="bus"]:checked').inputValue(), 'return-two');
+  assert.equal(await page.locator('[name="busOutbound"]').isChecked(), true);
+  assert.equal(await page.locator('[name="busReturnTime"]:checked').inputValue(), '02:00');
   assert.equal(await page.locator('#dietary').inputValue(), 'Sense gluten');
   await page.locator('#guest-name').fill('Canvi descartat');
   await page.locator('#dietary').fill('Dieta descartada');
-  await page.locator('[name="bus"][value="none"]').check();
+  await selectBus(page, false, null);
   await page.locator('#close-guest-dialog').click();
   assert.equal(await page.locator('#guest-manager').isVisible(), true);
   assert.equal(await page.locator('.guest-edit').count(), 1);
   await page.locator('.guest-edit').first().click();
   assert.equal(await page.locator('#guest-name').inputValue(), name);
   assert.equal(await page.locator('#dietary').inputValue(), 'Sense gluten');
-  assert.equal(await page.locator('[name="bus"]:checked').inputValue(), 'return-two');
+  assert.equal(await page.locator('[name="busReturnTime"]:checked').inputValue(), '02:00');
   await page.getByLabel('No podré vindre').check();
   assert.equal(await page.locator('#attendance-fields').isVisible(), false);
-  assert.equal(await page.locator('[name="bus"]:required').count(), 0);
+  assert.equal(await page.locator('[name="busReturnTime"]:required').count(), 0);
+  assert.equal(await page.locator('[name="busOutbound"]').isChecked(), false);
+  assert.equal(await page.locator('[name="busReturnTime"]:checked').count(), 0);
   assert.equal(await page.locator('#dietary').inputValue(), '');
   await save.click();
   assert.equal(await page.locator('#guest-manager').isVisible(), true);
@@ -1206,7 +1232,7 @@ test('Vindràs descarta canvis pendents, conserva invitats i permet revisar aban
   assert.equal(await page.locator('#confirm-send .icon-mail').count(), 1);
   assert.equal(await page.locator('#confirm-send .icon-arrow').count(), 0);
   assert.equal(await page.locator('#reply-summary > li').count(), 6);
-  assert.deepEqual(await page.locator('#reply-summary > li').first().locator('dd').allTextContents(), [name, 'No', 'No', '—']);
+  assert.deepEqual(await page.locator('#reply-summary > li').first().locator('dd').allTextContents(), [name, 'No', 'No', 'No', '—']);
   assert.equal(await page.locator('#reply-summary img').count(), 0, 'Els noms es mostren com a text literal');
   for (const [width, height] of [[1366, 900], [820, 900], [390, 844], [320, 568]]) {
     await page.setViewportSize({ width, height });
@@ -1299,17 +1325,18 @@ test('Google rep un POST amb tots els invitats i només una recepció vàlida de
   await page.evaluate(() => window.addEventListener('message', event => {
     if (event.data?.type === 'test:invalid-receipts-sent') window.invalidReceiptsSent = true;
   }));
-  await saveGuest(page, { name: 'Sara Ferrer', attendance: 'yes', bus: 'return-midnight', dietary: 'Sense gluten' });
+  await saveGuest(page, { name: 'Sara Ferrer', attendance: 'yes', busReturnTime: '00:00', dietary: 'Sense gluten' });
   await saveGuest(page, { name: 'Pau Martí' });
   await page.locator('#send-replies').click();
   assert.equal(payload, undefined, 'Obrir el resum encara no envia dades a Google');
-  assert.deepEqual(await page.locator('#reply-summary > li').first().locator('dd').allTextContents(), ['Sara Ferrer', 'Sí', 'Anada i tornada (00:00)', 'Sense gluten']);
-  assert.deepEqual(await page.locator('#reply-summary > li').nth(1).locator('dd').allTextContents(), ['Pau Martí', 'No', 'No', '—']);
+  assert.deepEqual(await page.locator('#reply-summary > li').first().locator('dd').allTextContents(), ['Sara Ferrer', 'Sí', 'No', '00:00', 'Sense gluten']);
+  assert.deepEqual(await page.locator('#reply-summary > li').nth(1).locator('dd').allTextContents(), ['Pau Martí', 'No', 'No', 'No', '—']);
   await page.locator('#confirm-send').click();
   await postSeen;
+  assert.equal(payload.version, 2);
   assert.deepEqual(payload.guests, [
-    { name: 'Sara Ferrer', attending: true, bus: 'return-midnight', dietary: 'Sense gluten' },
-    { name: 'Pau Martí', attending: false, bus: 'none', dietary: '' },
+    { name: 'Sara Ferrer', attending: true, busOutbound: false, busReturnTime: '00:00', dietary: 'Sense gluten' },
+    { name: 'Pau Martí', attending: false, busOutbound: false, busReturnTime: null, dietary: '' },
   ]);
   assert.equal(payload.replyTo, origin);
   assert.equal(await page.locator('#rsvp').getAttribute('data-state'), 'sending');
@@ -1343,7 +1370,7 @@ test('Sense endpoint no hi ha èxit simulat i un timeout retira el transport de 
   const result = await page.evaluate(async endpoint => {
     const { sendToGoogleSheets } = await import('./assets/js/google-sheets.js');
     try {
-      await sendToGoogleSheets([{ name: 'Pau', attendance: 'no', bus: '', dietary: '' }], { endpoint, timeoutMs: 150 });
+      await sendToGoogleSheets([{ name: 'Pau', attendance: 'no', busOutbound: false, busReturnTime: null, dietary: '' }], { endpoint, timeoutMs: 150 });
       return 'unexpected success';
     } catch (error) { return error.message; }
   }, endpoint);
@@ -1663,7 +1690,7 @@ test('Els camps creixen fins a quatre línies, es contrauen i mantenen les barre
   await name.fill('Aina Ferrer');
   assert.equal(await name.evaluate(el => el.rows), 1);
   await page.getByLabel('Sí, allí estaré!').check();
-  await page.locator('[name="bus"][value="none"]').check();
+  const emptyDietRows = await diet.evaluate(el => el.rows);
   await diet.fill('Sense gluten\nSense lactosa\nVegetariana\nSense fruits secs');
   assert.equal(await diet.evaluate(el => el.rows), 4);
   const cappedHeight = await diet.evaluate(el => el.getBoundingClientRect().height);
@@ -1692,7 +1719,7 @@ test('Els camps creixen fins a quatre línies, es contrauen i mantenen les barre
   assert.equal(await diet.inputValue(), longDiet);
   assert.equal(await diet.evaluate(el => el.rows), 4);
   await diet.fill('');
-  assert.equal(await diet.evaluate(el => el.rows), 1);
+  assert.equal(await diet.evaluate(el => el.rows), emptyDietRows);
   assert.equal(await diet.evaluate(el => el.scrollHeight <= el.clientHeight), true);
   await page.close();
 });
