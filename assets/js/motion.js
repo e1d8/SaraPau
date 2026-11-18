@@ -3,8 +3,9 @@
 export function setupMotion() {
   const preference = matchMedia('(prefers-reduced-motion: reduce)');
   setupInvitationMotion(preference);
+  setupCoupleMotion(preference);
   if (preference.matches || !('IntersectionObserver' in window) || !Element.prototype.animate) return;
-  const targets = [...document.querySelectorAll('.hero-copy > *, .timeline-item, .rsvp-invitation, .celebration > .banquet-divider, .closing-message, .gift-message, .bank-account, .site-footer > *')];
+  const targets = [...document.querySelectorAll('.hero-copy > *, .wedding-couple, .timeline-item, .rsvp-invitation, .celebration > .banquet-divider, .closing-message, .gift-message, .bank-account, .site-footer > *')];
   const hero = document.querySelector('.home-hero');
   const branches = createNameOrnament('branches');
   hero.querySelector('.hero-date').append(branches);
@@ -252,6 +253,27 @@ export function setupMotion() {
     observeRemaining();
   };
   document.fonts.ready.then(() => { if (!stopped) return runIntroduction(); }).catch(showEverything);
+}
+
+// El balanceig només viu mentre el dibuix es veu, amb la pàgina activa.
+function setupCoupleMotion(preference) {
+  const couple = document.querySelector('.wedding-couple');
+  if (!couple) return;
+  let inView = !('IntersectionObserver' in window);
+  const update = () => couple.classList.toggle('is-alive',
+    inView && !preference.matches && !document.hidden && !document.querySelector('dialog[open]'));
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(entries => {
+      inView = entries[0].isIntersecting;
+      update();
+    }, { threshold: .05 }).observe(couple);
+  }
+  new MutationObserver(update).observe(document.querySelector('#rsvp'), {
+    attributes: true, attributeFilter: ['open'], subtree: true,
+  });
+  preference.addEventListener('change', update);
+  document.addEventListener('visibilitychange', update);
+  update();
 }
 
 // Anells sobre els noms i rametes baix de la data, dibuixats en dos moments.

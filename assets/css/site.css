@@ -114,6 +114,23 @@ strong{font-weight:400}
 .type-letter{display:inline}
 .hero-date{font-size:var(--text-medium);font-weight:400;color:var(--dark);line-height:1.12;margin-top:16px}
 
+/* Dibuix vectorial original. El blanc del paper i dels vestits es conserva. */
+.wedding-couple{width:clamp(260px,29vw,350px);max-width:calc(100% - 48px);margin:32px auto 0}
+.couple-illustration{display:block;width:100%;height:auto;overflow:visible;color:var(--primary);fill:none;stroke:currentColor;stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round}
+.couple-illustration .paper{fill:var(--white)}
+.couple-illustration .ink-fine{stroke-width:1;opacity:.75}
+.couple-illustration .head-placeholder{stroke-width:1.2}
+.couple-illustration .couple-ground{opacity:.35}
+.couple-sway,.couple-skirt,.couple-bouquet-arm,.couple-veil{transform-box:view-box}
+.couple-sway{transform-origin:112px 232px}
+.couple-skirt{transform-origin:181px 145px}
+.couple-bouquet-arm{transform-origin:212px 114px}
+.couple-veil{transform-origin:213px 112px}
+.wedding-couple.is-alive:not(.reveal-pending) .couple-sway{animation:couple-sway 7s ease-in-out infinite}
+.wedding-couple.is-alive:not(.reveal-pending) .couple-skirt{animation:couple-fabric 7.8s ease-in-out infinite}
+.wedding-couple.is-alive:not(.reveal-pending) .couple-bouquet-arm{animation:couple-bouquet 6.5s ease-in-out infinite}
+.wedding-couple.is-alive:not(.reveal-pending) .couple-veil{animation:couple-veil 8.5s ease-in-out infinite}
+
 .ceremony{display:grid;grid-template-columns:1fr 1.06fr 1fr;gap:26px;align-items:start;padding-top:90px;padding-bottom:42px;text-align:center}
 .ceremony>div:not(.calendar){padding-top:28px}
 .ceremony h2{font-size:38px}
@@ -326,6 +343,16 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 @keyframes appear{from{opacity:0;translate:0 10px}to{opacity:1;translate:0 0}}
 @keyframes fade-in{from{opacity:0}to{opacity:1}}
 @keyframes ink-appear{from{opacity:0;scale:.8}to{opacity:1;scale:1}}
+@keyframes couple-sway{
+  0%,100%{transform:rotate(-.47deg) translateY(0)}
+  50%{transform:rotate(.47deg) translateY(-.7px)}
+}
+@keyframes couple-fabric{0%,100%{transform:rotate(-.3deg)}50%{transform:rotate(.65deg)}}
+@keyframes couple-bouquet{
+  0%,100%{transform:rotate(-.8deg)}
+  50%{transform:rotate(.85deg)}
+}
+@keyframes couple-veil{0%,100%{transform:rotate(-.3deg)}50%{transform:rotate(1.3deg)}}
 @keyframes heart-beat{0%,18%,100%{scale:1}4%{scale:1.15}8%{scale:.98}12%{scale:1.09}}
 @keyframes cupid-hover{0%,100%{transform:translate(0,0) rotate(-8deg)}40%{transform:translate(4px,-8px) rotate(-4deg)}70%{transform:translate(-3px,-3px) rotate(-10deg)}}
 @keyframes heart-bubble-rise{0%{opacity:0;transform:translate(-50%,0) rotate(-8deg)}7%{opacity:.75}32%{transform:translate(calc(-50% + var(--drift) * .5 + 7px),calc(var(--rise) * .38)) rotate(9deg)}62%{transform:translate(calc(-50% + var(--drift) * .7 - 5px),calc(var(--rise) * .75)) rotate(-6deg)}83%,100%{transform:translate(calc(-50% + var(--drift)),var(--rise)) rotate(5deg)}91%{opacity:.75}100%{opacity:0}}

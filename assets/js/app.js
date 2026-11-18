@@ -3,6 +3,7 @@ import { wedding as w } from './content.js';
 import { setupRsvp } from './rsvp.js';
 import { setupPageScrollbar, setupScrollGuides } from './scrollbar.js';
 import { setupMotion } from './motion.js';
+import { weddingCouple } from './couple.js';
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const art = (name, extra = '') => `<span class="art art-${name} ${extra}" aria-hidden="true"></span>`;
@@ -61,7 +62,7 @@ function rsvp() {
 
 function landing() {
   return `<main id="contingut">
-    <section class="home-hero" aria-labelledby="hero-title"><div class="hero-copy"><h1 class="signature" id="hero-title">${escape(w.couple)}</h1><p class="hero-date"><time datetime="${escape(w.date)}">${escape(w.dateShort)}</time></p><p class="hero-opening">${escape(w.home.opening)}</p></div></section>
+    <section class="home-hero" aria-labelledby="hero-title"><div class="hero-copy"><h1 class="signature" id="hero-title">${escape(w.couple)}</h1><p class="hero-date"><time datetime="${escape(w.date)}">${escape(w.dateShort)}</time></p><p class="hero-opening">${escape(w.home.opening)}</p></div>${weddingCouple()}</section>
     <section class="timeline section" id="detalls" aria-label="Programa de la boda"><ol>${w.timeline.map(item => `<li class="timeline-item image-${escape(item.imageSide)}${item.kind === 'transport' ? ' is-transport' : ''}">${art(item.illustration, `timeline-art${item.imageFlipped ? ' is-flipped' : ''}`)}<div class="timeline-copy"><p class="timeline-time">${escape(item.time)}</p><h3>${escape(item.title)}</h3><p>${item.parts.map(part => typeof part === 'string' ? escape(part) : part.link === false ? escape(w.places[part.place].name) : placeLink(part.place)).join('')}</p></div></li>`).join('')}</ol></section>
     ${rsvp()}
     <section class="celebration section" aria-label="La nostra gent"><div class="banquet-divider" aria-hidden="true">${art('rames-taronger')}</div><p class="gift-message">${escape(w.home.giftMessage)}</p><div class="bank-account"><p><span class="sr-only">Compte bancari: </span><span id="iban">${escape(w.bankAccount)}</span></p><button class="copy-iban" id="copy-iban" type="button" aria-label="Copia l’IBAN" title="Copia l’IBAN">${icon('copy', 'copy-icon')}${icon('check', 'copy-check')}</button></div><p class="copy-status sr-only" id="copy-status" role="status" aria-live="polite"></p></section>

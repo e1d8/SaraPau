@@ -64,6 +64,13 @@ test('La landing mostra les seccions sol·licitades dins de /SaraPau/ en escript
       }));
       assert.deepEqual(mediumStyles[0], mediumStyles[1]);
       assert.deepEqual(await page.locator('.hero-copy > *').evaluateAll(elements => elements.map(el => el.classList[0])), ['signature', 'hero-date', 'hero-opening']);
+      assert.equal(await page.locator('.wedding-couple').evaluate(el => {
+        const box = el.getBoundingClientRect();
+        const message = document.querySelector('.hero-opening').getBoundingClientRect();
+        const programme = document.querySelector('.timeline-time').getBoundingClientRect();
+        return box.top > message.bottom && box.bottom < programme.top && box.left >= 0 && box.right <= innerWidth;
+      }), true, 'La parella queda entre el missatge i els horaris i cap en pantalla');
+      assert.equal(await page.locator('.couple-illustration .paper').evaluateAll(elements => elements.every(el => getComputedStyle(el).fill === 'rgb(255, 255, 255)')), true);
       for (const [index, illustration] of ['esglesia-major', 'cotxe', 'copes', 'focs-artificials'].entries()) {
         const art = page.locator('.timeline-item').nth(index).locator(`.art-${illustration}`);
         assert.equal(await art.count(), 1);
@@ -460,23 +467,80 @@ test('Cupido flota al costat de Vindràs i els cors pugen i esclaten sense inter
   }
 });
 
+test('La parella té un balanceig discret i només s’anima quan es veu i es permet el moviment', async () => {
+  for (const width of [390, 1366]) {
+    const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'no-preference' });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await load(page);
+    const couple = page.locator('.wedding-couple');
+    assert.equal(await couple.evaluate(el => el.classList.contains('reveal-pending')), true);
+    assert.equal(await couple.locator('svg').evaluate(el => el.getAnimations({ subtree: true }).length), 0,
+      'El balanceig espera fins que acaba el missatge inicial');
+    await page.waitForFunction(() => document.querySelector('.home-hero').dataset.intro === 'complete');
+    await couple.scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => document.querySelector('.couple-illustration').getAnimations({ subtree: true }).length === 4);
+    assert.equal(await couple.locator('[data-photo-placeholder] ellipse').count(), 2);
+    assert.equal(await couple.getByRole('img', { name: 'Junts, per a tot' }).count(), 1);
+    const motion = await couple.locator('svg').evaluate(svg => {
+      const animations = svg.getAnimations({ subtree: true });
+      const parts = [...svg.querySelectorAll('.couple-bouquet-arm, .couple-skirt, #groom-head, #bride-head')];
+      const measure = () => parts.map(el => {
+        const box = el.getBoundingClientRect();
+        return [box.x, box.y, box.width, box.height];
+      });
+      animations.forEach(animation => { animation.pause(); animation.currentTime = 0; });
+      const initial = measure();
+      animations.forEach(animation => { animation.currentTime = animation.effect.getTiming().duration / 2; });
+      const middle = measure();
+      animations.forEach(animation => { animation.currentTime = animation.effect.getTiming().duration - .01; });
+      const end = measure();
+      const delta = (a, b) => Math.max(...a.flatMap((box, i) => box.map((value, j) => Math.abs(value - b[i][j]))));
+      return { movement: delta(initial, middle), seam: delta(initial, end), loop: animations.every(animation => animation.effect.getTiming().iterations === Infinity) };
+    });
+    assert.equal(motion.loop, true);
+    assert.ok(motion.movement > .2 && motion.movement < 6, `Moviment subtil, inferior a sis píxels: ${JSON.stringify(motion)}`);
+    assert.ok(motion.seam < .1, 'El final del bucle enllaça sense salt amb el principi');
+
+    await page.evaluate(() => document.querySelector('#guest-dialog').showModal());
+    await page.waitForFunction(() => !document.querySelector('.wedding-couple').classList.contains('is-alive'));
+    assert.equal(await couple.locator('svg').evaluate(el => el.getAnimations({ subtree: true }).length), 0);
+    await page.evaluate(() => document.querySelector('#guest-dialog').close());
+    await page.waitForFunction(() => document.querySelector('.wedding-couple').classList.contains('is-alive'));
+
+    await page.locator('.site-footer').scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => !document.querySelector('.wedding-couple').classList.contains('is-alive'));
+    assert.equal(await couple.locator('svg').evaluate(el => el.getAnimations({ subtree: true }).length), 0);
+    await couple.scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => document.querySelector('.wedding-couple').classList.contains('is-alive'));
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    assert.equal(await couple.isVisible(), true);
+    assert.equal(await couple.locator('svg').evaluate(el => el.getAnimations({ subtree: true }).length), 0);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.waitForFunction(() => document.querySelector('.couple-illustration').getAnimations({ subtree: true }).length === 4);
+    assert.equal(await page.locator('.couple-illustration').count(), 1);
+    assert.deepEqual(errors, []);
+    await page.close();
+  }
+});
+
 test('Els elements visibles després del missatge entren en ordre amb un quart de segon entre inicis', async () => {
   const page = await browser.newPage({ viewport: { width: 1366, height: 1600 }, reducedMotion: 'no-preference' });
   await load(page);
   await page.evaluate(() => {
     window.revealTimes = [];
-    const elements = [...document.querySelectorAll('.timeline-item')];
+    const elements = [...document.querySelectorAll('.wedding-couple, .timeline-item')];
     const seen = new Set();
     new MutationObserver(() => elements.forEach((el, index) => {
       if (!seen.has(el) && !el.classList.contains('reveal-pending')) {
         seen.add(el);
         window.revealTimes.push({ index, time: performance.now() });
       }
-    })).observe(document.querySelector('.timeline'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+    })).observe(document.querySelector('main'), { subtree: true, attributes: true, attributeFilter: ['class'] });
   });
-  await page.waitForFunction(() => window.revealTimes.length === 4);
+  await page.waitForFunction(() => window.revealTimes.length === 5);
   const times = await page.evaluate(() => window.revealTimes);
-  assert.deepEqual(times.map(item => item.index), [0, 1, 2, 3]);
+  assert.deepEqual(times.map(item => item.index), [0, 1, 2, 3, 4]);
   for (let i = 1; i < times.length; i++) {
     const interval = times[i].time - times[i - 1].time;
     assert.ok(interval >= 230 && interval < 450, `Interval esperat de 250 ms: ${interval}`);

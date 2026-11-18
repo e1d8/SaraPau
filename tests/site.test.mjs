@@ -111,7 +111,7 @@ test('L’RSVP no persistix dades al navegador i la configuració exigix un endp
   assert.doesNotMatch(js, /fetch\s*\(|XMLHttpRequest|sendBeacon|localStorage|sessionStorage|indexedDB|document\.cookie/);
   assert.match(js, /event\.preventDefault\(\)/);
   const assets = await readdir(resolve(root, 'assets/js'));
-  assert.deepEqual(assets.sort(), ['app.js', 'content.js', 'google-sheets.js', 'icons.js', 'motion.js', 'navigation.js', 'rsvp-config.js', 'rsvp.js', 'scrollbar.js']);
+  assert.deepEqual(assets.sort(), ['app.js', 'content.js', 'couple.js', 'google-sheets.js', 'icons.js', 'motion.js', 'navigation.js', 'rsvp-config.js', 'rsvp.js', 'scrollbar.js']);
   assert.equal(rsvpConfig.mode, 'google');
   assert.equal(RSVP_TIMEOUT_MS, 30000);
   const endpoint = 'https://script.google.com/macros/s/test-deployment/exec';
