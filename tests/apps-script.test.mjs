@@ -12,7 +12,7 @@ const guest = (name, fields = {}) => ({ name, attending: true, busOutbound: fals
 function backend() {
   const state = {
     properties: new Map(), sheets: [], metadata: [], batches: [], locked: false, busy: false,
-    failBatch: null, metadataSearchHook: null,
+    failBatch: null, beforeBatch: null, metadataSearchHook: null,
   };
   const owner = { getEmail: () => 'owner@example.test' };
   state.effectiveUser = owner;
@@ -59,13 +59,17 @@ function backend() {
       this.name = name;
       this.id = id;
       this.cells = new Map();
+      this.formulas = new Map();
       this.maxRows = 20;
       this.maxColumns = 10;
       this.validations = new Map();
       this.protections = [];
     }
     getRange(...args) { return new Range(this, ...args); }
-    getLastRow() { return Math.max(0, ...[...this.cells].filter(([, v]) => v !== '').map(([key]) => Number(key.split(':')[0]))); }
+    getLastRow() {
+      const filled = [...this.cells].filter(([, value]) => value !== '').map(([key]) => key);
+      return Math.max(0, ...[...filled, ...this.formulas.keys()].map(key => Number(key.split(':')[0])));
+    }
     getLastColumn() { return Math.max(0, ...[...this.cells].filter(([, v]) => v !== '').map(([key]) => Number(key.split(':')[1]))); }
     getMaxRows() { return this.maxRows; }
     insertRowsAfter(_, count) { this.maxRows += count; }
@@ -96,6 +100,7 @@ function backend() {
   const properties = {
     getProperty: key => state.properties.get(key) || null,
     getProperties: () => Object.fromEntries(state.properties),
+    setProperty(key, value) { state.properties.set(key, value); return this; },
     setProperties(values) { Object.entries(values).forEach(([key, value]) => state.properties.set(key, value)); return this; },
     deleteProperty(key) { state.properties.delete(key); return this; },
   };
@@ -119,6 +124,23 @@ function backend() {
   });
   const sheetsApi = {
     get(id) { assert.equal(id, spreadsheet.getId()); return { spreadsheetId: id }; },
+    Values: {
+      batchGet(id, { ranges, valueRenderOption }) {
+        requireLock();
+        assert.equal(id, spreadsheet.getId());
+        assert.equal(valueRenderOption, 'FORMULA');
+        return { valueRanges: ranges.map(range => {
+          const sheet = spreadsheet.getSheetByName(range.match(/^'([^']+)'!A2:F$/)[1]);
+          const count = sheet.getLastRow() - 1;
+          if (count < 1) return { range };
+          const values = sheet.getRange(2, 1, count, 6).getValues().map((row, index) => {
+            const cells = row.map((value, col) => sheet.formulas.get(`${index + 2}:${col + 1}`) ?? value);
+            return cells.slice(0, cells.findLastIndex(value => value !== '') + 1);
+          });
+          return { range, values };
+        }) };
+      },
+    },
     DeveloperMetadata: {
       search({ dataFilters }, id) {
         assert.equal(id, spreadsheet.getId());
@@ -136,28 +158,41 @@ function backend() {
       const fail = state.failBatch;
       state.failBatch = null;
       if (fail === 'before') throw new Error('Falla abans d’escriure');
+      const beforeBatch = state.beforeBatch;
+      state.beforeBatch = null;
+      beforeBatch?.();
       // Validar el lot sencer abans de modificar cap pestanya.
+      const rowLimits = new Map(state.sheets.map(sheet => [sheet.id, sheet.maxRows]));
       for (const request of requests) {
         if (request.createDeveloperMetadata) {
           const { metadataId } = request.createDeveloperMetadata.developerMetadata;
           if (state.metadata.some(marker => marker.metadataId === metadataId)) throw new Error('ID de metadades duplicat');
-        } else if (request.updateCells) {
+        } else if (request.appendDimension) {
+          const { sheetId, dimension, length } = request.appendDimension;
+          assert.equal(dimension, 'ROWS');
+          rowLimits.set(sheetId, rowLimits.get(sheetId) + length);
+        } else if (request.updateCells.range) {
           assert.ok(sheetById(request.updateCells.range.sheetId));
         } else {
-          assert.ok(sheetById(request.appendCells.sheetId));
-          assert.equal(request.appendCells.rows[0].values.length, 6);
+          const { start, rows } = request.updateCells;
+          assert.ok(start.rowIndex > 0 && start.rowIndex + rows.length <= rowLimits.get(start.sheetId));
+          assert.equal(start.columnIndex, 0);
+          assert.equal(rows[0].values.length, 6);
         }
       }
       for (const request of requests) {
         if (request.createDeveloperMetadata) state.metadata.push(normalize(request.createDeveloperMetadata.developerMetadata));
-        else if (request.updateCells) {
+        else if (request.appendDimension) {
+          sheetById(request.appendDimension.sheetId).maxRows += request.appendDimension.length;
+        } else if (request.updateCells.range) {
           const sheet = sheetById(request.updateCells.range.sheetId);
           sheet.cells.clear();
+          sheet.formulas.clear();
           sheet.validations.clear();
           applyRows(sheet, 1, request.updateCells.rows);
         } else {
-          const sheet = sheetById(request.appendCells.sheetId);
-          applyRows(sheet, sheet.getLastRow() + 1, request.appendCells.rows);
+          const { start, rows } = request.updateCells;
+          applyRows(sheetById(start.sheetId), start.rowIndex + 1, rows);
         }
       }
       if (fail === 'after') throw new Error('Sheets ha guardat el lot, però s’ha perdut la recepció');
@@ -214,7 +249,8 @@ function backend() {
         total + vm.runInNewContext(expression, { name, attending, outbound, returnTime }), 0);
     });
   };
-  return { state, context, spreadsheet, request, post, tab, counts };
+  const completeBatch = requests => sheetsApi.batchUpdate({ requests }, spreadsheet.getId());
+  return { state, context, spreadsheet, request, post, tab, counts, completeBatch };
 }
 
 test('Configura les tres pestanyes, els desplegables i la protecció de les dos pestanyes de lectura', () => {
@@ -297,8 +333,12 @@ test('Escriu els trajectes i la data en les dos còpies, i recompta des d’Invi
   assert.equal(receipt.received, true);
   assert.equal(receipt.count, 6);
   assert.equal(app.state.batches.length, 1);
-  const [raw, editable, marker] = app.state.batches[0];
-  assert.deepEqual(raw.appendCells.rows, editable.appendCells.rows);
+  const batch = app.state.batches[0];
+  const writtenRows = name => batch.filter(request => request.updateCells?.start?.sheetId === app.tab(name).id)
+    .flatMap(request => request.updateCells.rows);
+  const raw = writtenRows('RESPOSTES');
+  assert.deepEqual(raw, writtenRows('Invitats'));
+  const marker = batch.at(-1);
   assert.ok(marker.createDeveloperMetadata);
   const rows = app.tab('RESPOSTES').getRange(2, 1, 6, 6).getValues();
   assert.deepEqual(rows, app.tab('Invitats').getRange(2, 1, 6, 6).getValues());
@@ -306,10 +346,10 @@ test('Escriu els trajectes i la data en les dos còpies, i recompta des d’Invi
     ['No', 'No', ''], ['13:30', 'No', ''], ['No', '00:00', ''], ['No', '02:00', ''],
     ['13:30', '00:00', '=menú literal'], ['No', 'No', ''],
   ]);
-  const dateCells = raw.appendCells.rows.map(row => row.values[5]);
+  const dateCells = raw.map(row => row.values[5]);
   assert.ok(dateCells.every(cell => cell.userEnteredFormat.numberFormat.type === 'DATE_TIME' &&
     typeof cell.userEnteredValue.numberValue === 'number' && cell.userEnteredValue.numberValue === rows[0][5]));
-  assert.deepEqual(raw.appendCells.rows[4].values[4].userEnteredValue, { stringValue: '=menú literal' });
+  assert.deepEqual(raw[4].values[4].userEnteredValue, { stringValue: '=menú literal' });
   const date = new Date('2027-10-09T11:30:00Z');
   const serial = 25569 + Date.parse('2027-10-09T13:30:00Z') / 86400000;
   assert.ok(Math.abs(app.context.spreadsheetDate_(date) - serial) < .000001);
@@ -318,6 +358,50 @@ test('Escriu els trajectes i la data en les dos còpies, i recompta des d’Invi
   app.tab('Invitats').cells.set('3:2', false);
   assert.deepEqual(app.counts(), [4, 1, 1, 2]);
   assert.equal(app.tab('RESPOSTES').cells.get('4:4'), '00:00');
+});
+
+test('Ompli els primers buits de cada pestanya sense comptar la columna d’assistència', () => {
+  const app = backend();
+  app.context.setupSpreadsheet();
+  const raw = app.tab('RESPOSTES');
+  const editable = app.tab('Invitats');
+  raw.maxRows = 1001;
+  editable.maxRows = 3004;
+  const rawData = [
+    ['2:2', false], ['3:1', 'Nom ocupat'], ['4:3', 'No'], ['5:4', '02:00'],
+    ['6:5', 'Dieta anotada'], ['7:6', 45999], ['1001:1', 'Resposta anterior'],
+  ];
+  for (const [cell, value] of rawData) raw.cells.set(cell, value);
+  raw.formulas.set('8:5', '=""');
+  editable.cells.set('2:4', 'No');
+  editable.cells.set('3:2', true);
+  editable.cells.set('4:1', 'Invitat existent');
+  editable.cells.set('5:2', false);
+  editable.cells.set('3004:1', 'Invitat anterior');
+
+  assert.equal(app.post(app.request([guest('Aina'), guest('Pau', { attending: false }), guest('Sara')])).received, true);
+  assert.deepEqual([2, 9, 10].map(row => raw.cells.get(`${row}:1`)), ['Aina', 'Pau', 'Sara']);
+  assert.deepEqual([3, 5, 6].map(row => editable.cells.get(`${row}:1`)), ['Aina', 'Pau', 'Sara']);
+  for (const [cell, value] of rawData.slice(1)) assert.equal(raw.cells.get(cell), value);
+  assert.equal(raw.formulas.get('8:5'), '=""');
+  assert.equal(editable.cells.get('2:4'), 'No');
+  assert.equal(editable.cells.get('4:1'), 'Invitat existent');
+  assert.equal(editable.cells.get('3004:1'), 'Invitat anterior');
+});
+
+test('Afig capacitat quan s’han omplit totes les files del full', () => {
+  const app = backend();
+  app.context.setupSpreadsheet();
+  for (const name of ['RESPOSTES', 'Invitats']) {
+    app.tab(name).maxRows = 2;
+    app.tab(name).cells.set('2:1', 'Resposta anterior');
+  }
+  assert.equal(app.post(app.request([guest('Aina'), guest('Pau')])).received, true);
+  for (const name of ['RESPOSTES', 'Invitats']) {
+    const sheet = app.tab(name);
+    assert.equal(sheet.getMaxRows(), 4);
+    assert.deepEqual(sheet.getRange(2, 1, 3, 1).getValues().flat(), ['Resposta anterior', 'Aina', 'Pau']);
+  }
 });
 
 test('Un error de guardat és atòmic i una recepció perduda no duplica ni restaura files editades', () => {
@@ -343,6 +427,24 @@ test('Un error de guardat és atòmic i una recepció perduda no duplica ni rest
   assert.equal(app.tab('Invitats').cells.get('2:1'), 'Sara corregida');
   assert.equal(app.tab('RESPOSTES').cells.get('2:1'), 'Sara');
   assert.equal(app.post({ ...request, guests: [guest('Altres dades')] }).error, 'REQUEST_CONFLICT');
+});
+
+test('Dos lots amb les mateixes files previstes no poden sobreescriure’s', () => {
+  const app = backend();
+  app.context.setupSpreadsheet();
+  const first = app.request([guest('Sara')]);
+  const second = app.request([guest('Pau')], '00000000-0000-4000-8000-000000000002');
+  app.state.failBatch = 'before';
+  assert.equal(app.post(first).received, false);
+  const pendingBatch = app.state.batches[0];
+  // El primer lot arriba a Sheets després que el segon haja triat les files.
+  app.state.beforeBatch = () => app.completeBatch(pendingBatch);
+  assert.equal(app.post(second).received, false);
+  assert.equal(app.post(first).received, true);
+  assert.equal(app.post(second).received, true);
+  for (const name of ['RESPOSTES', 'Invitats']) {
+    assert.deepEqual(app.tab(name).getRange(2, 1, 2, 1).getValues().flat(), ['Sara', 'Pau']);
+  }
 });
 
 test('Un lot que acaba durant un reintent es confirma una sola vegada', () => {

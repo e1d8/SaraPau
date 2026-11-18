@@ -15,6 +15,9 @@ const DATE_FORMAT = 'dd/MM/yyyy HH:mm:ss';
 const READY_PROPERTY = 'RSVP2_READY';
 const RESET_KEY = 'sarapau-rsvp-v2-reset';
 const COMMIT_PREFIX = 'sarapau-rsvp-v2:';
+const WRITE_SLOT_PROPERTY = 'RSVP2_WRITE_SLOT';
+// Índexs de Nom, Bus anada, Bus tornada, Menu especial i Timestamp.
+const OCCUPANCY_COLUMNS = [0, 2, 3, 4, 5];
 
 // Configuració ordinària. No esborra les files dels invitats ni de l’històric.
 function setupSpreadsheet() {
@@ -287,14 +290,21 @@ function saveGuests_(request) {
     const key = COMMIT_PREFIX + request.requestId;
     const digest = sha256_(JSON.stringify(request.guests));
     const receipt = { received: true, count: request.guests.length };
+    // Comprovar el lot després de fixar l'identificador del pròxim guardat.
+    // Un lot anterior pot haver acabat entre les dos consultes.
+    const metadataId = nextWriteMetadataId_(id);
     if (hasCommit_(id, key, digest)) return receipt;
 
     const timestamp = spreadsheetDate_(new Date());
     const rows = request.guests.map(guest => guestCells_(guest, timestamp));
-    const requests = [responses, guests].map(sheet => ({
-      appendCells: { sheetId: sheet.getSheetId(), rows, fields: 'userEnteredValue,userEnteredFormat,dataValidation' },
-    }));
-    requests.push(createMetadataRequest_(id, key, digest));
+    const sheets = [responses, guests];
+    const { valueRanges } = Sheets.Spreadsheets.Values.batchGet(id, {
+      ranges: sheets.map(sheet => "'" + sheet.getName() + "'!A2:F"),
+      // Una fórmula que mostra una cel·la buida també ocupa la fila.
+      valueRenderOption: 'FORMULA',
+    });
+    const requests = sheets.flatMap((sheet, index) => guestWriteRequests_(sheet, valueRanges[index].values ?? [], rows));
+    requests.push(metadataRequest_(metadataId, key, digest));
     try {
       // Un únic lot escriu les dos pestanyes i confirma la mateixa operació.
       Sheets.Spreadsheets.batchUpdate({ requests }, id);
@@ -306,6 +316,36 @@ function saveGuests_(request) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function guestWriteRequests_(sheet, values, rows) {
+  const sheetId = sheet.getSheetId();
+  const requests = [];
+  let rowIndex = 1; // La fila 1 és la capçalera. L'API utilitza índexs des de zero.
+  for (const row of rows) {
+    while (rowIndex <= values.length && OCCUPANCY_COLUMNS.some(column => (values[rowIndex - 1][column] ?? '') !== '')) {
+      rowIndex++;
+    }
+    requests.push({ updateCells: {
+      start: { sheetId, rowIndex, columnIndex: 0 },
+      rows: [row],
+      fields: 'userEnteredValue,userEnteredFormat,dataValidation',
+    } });
+    rowIndex++;
+  }
+  const extraRows = rowIndex - sheet.getMaxRows();
+  if (extraRows > 0) requests.unshift({ appendDimension: { sheetId, dimension: 'ROWS', length: extraRows } });
+  return requests;
+}
+
+function nextWriteMetadataId_(id) {
+  const properties = PropertiesService.getScriptProperties();
+  let metadataId = Number(properties.getProperty(WRITE_SLOT_PROPERTY)) || 1;
+  while (findMetadata_(id, { metadataId })) metadataId++;
+  // Mantindre el mateix ID fins que conste un guardat. Si Sheets acaba un
+  // lot anterior tard, l'ID duplicat rebutja tot el segon lot atòmicament.
+  properties.setProperty(WRITE_SLOT_PROPERTY, String(metadataId));
+  return metadataId;
 }
 
 function findMetadata_(id, developerMetadataLookup) {
@@ -329,6 +369,10 @@ function createMetadataRequest_(id, key, value) {
     metadataId = metadataId % max + 1;
     occupied = findMetadata_(id, { metadataId });
   }
+  return metadataRequest_(metadataId, key, value);
+}
+
+function metadataRequest_(metadataId, key, value) {
   return {
     createDeveloperMetadata: {
       developerMetadata: { metadataId, metadataKey: key, metadataValue: value, location: { spreadsheet: true }, visibility: 'PROJECT' },

@@ -32,6 +32,8 @@ En un full buit, executa **`setupSpreadsheet`**. Usa també esta funció per a a
 
 Cada enviament afig una fila per invitat a cada pestanya. Les hores es guarden com a text, de manera que `00:00` conserva els zeros. Si l’invitat no assistix, els dos trajectes es guarden amb `No` i el menú queda buit. Tots els invitats del lot compartixen timestamp.
 
+El guardat busca la primera fila disponible de cada pestanya des de la fila 2. Una fila està disponible quan «Nom», «Bus anada», «Bus tornada», «Menu especial» i «Timestamp» estan buits. La casella d’«Asistirà» no intervé en la comprovació. Les cel·les amb fórmules en les columnes comprovades es consideren ocupades. Per a aplicar este canvi en un full que ja està en ús, actualitza `Code.gs` i publica una nova versió de la mateixa implementació.
+
 «RESPOSTES» conserva l’original i «Invitats» és la còpia de treball. Les dos pestanyes protegides són «RESPOSTES» i «Recompte». Les persones amb permís d’edició poden fer les correccions en «Invitats». El propietari conserva el permís sobre les pestanyes protegides que Google Sheets li atorga. [Protecció de fulls en Apps Script](https://developers.google.com/apps-script/reference/spreadsheet/protection)
 
 ### Recompte

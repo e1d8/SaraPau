@@ -19,7 +19,11 @@ function rsvp() {
     <div class="rsvp-panel"><div class="rsvp-invitation">
       <div class="invitation-decor" aria-hidden="true">${art('cupid', 'invitation-cupid')}<span class="heart-bubbles">${Array.from({ length: 6 }, () => `<span class="heart-bubble">${icon('heart', 'bubble-heart')}${icon('burst', 'bubble-pop')}</span>`).join('')}</span></div>
       <button class="button rsvp-trigger" id="open-rsvp" type="button" aria-haspopup="dialog" aria-controls="guest-dialog">Vindràs?</button>
-    </div><div class="rsvp-success" id="rsvp-success" role="status" hidden><p class="success-title" id="rsvp-success-title" tabindex="-1">Respostes enviades</p><h3 class="success-thanks">Gràcies</h3>${icon('heart')}</div></div>
+    </div><div class="rsvp-success" id="rsvp-success" role="status" hidden>
+      ${art('heart', 'success-heart')}
+      <p class="success-title" id="rsvp-success-title" tabindex="-1">Respostes enviades</p>
+      <h3 class="success-thanks">Gràcies</h3>${icon('heart')}
+    </div></div>
     <dialog class="guest-dialog" id="guest-dialog" aria-labelledby="manager-title" aria-describedby="rsvp-description">
       <div class="guest-dialog-header" id="guest-dialog-header"><h3 id="manager-title">Invitats</h3><h3 class="review-title" id="review-title" tabindex="-1" hidden>Resum de respostes</h3><h3 id="guest-dialog-title" hidden>Invitat 1</h3><h3 id="delete-guest-title" tabindex="-1" hidden>Borrar l’invitat?</h3><h3 id="rsvp-error-title" tabindex="-1" hidden>Error :(</h3><button class="close-dialog" id="close-guest-dialog" type="button" aria-label="Tancar finestra"><span aria-hidden="true">x</span></button></div>
       <p class="rsvp-description" id="rsvp-description" tabindex="-1">Afegix la resposta de tots els invitats del teu cercle</p>
@@ -32,17 +36,22 @@ function rsvp() {
       <form id="rsvp-form" hidden novalidate autocomplete="off" aria-labelledby="guest-dialog-title">
         <div class="dialog-scroll" id="guest-fields">
         <div class="form-field"><label for="guest-name">Nom i cognoms <span aria-hidden="true">*</span></label><textarea class="auto-grow" id="guest-name" name="name" rows="1" required maxlength="160" autocomplete="off" aria-describedby="form-status"></textarea></div>
-        <fieldset class="attendance"><legend>Mos acompanyaràs? <span aria-hidden="true">*</span></legend><label class="radio-label"><input type="radio" name="attendance" value="yes" required aria-describedby="form-status">${icon('check', 'radio-tick')}<span>Sí, allí estaré!</span></label><label class="radio-label"><input type="radio" name="attendance" value="no" required aria-describedby="form-status">${icon('check', 'radio-tick')}<span>No podré vindre</span></label></fieldset>
+        <fieldset class="attendance">
+          <legend>Mos acompanyaràs? <span aria-hidden="true">*</span></legend>
+          <label class="radio-label"><input type="radio" name="attendance" value="yes" required aria-describedby="form-status"><span>Sí, allí estaré!</span></label>
+          <label class="radio-label"><input type="radio" name="attendance" value="no" required aria-describedby="form-status"><span>No podré vindre</span></label>
+        </fieldset>
         <div id="attendance-fields" hidden>
-          <fieldset class="bus-choice">
+          <fieldset class="bus-choice" aria-describedby="bus-selection-help">
             <legend>Utilitzaries el bus?</legend>
+            <p class="field-help" id="bus-selection-help">Pots marcar-ne una, les dos o cap.</p>
             <div class="bus-options">
               <label class="radio-label"><input type="checkbox" name="busOutbound" disabled>${icon('check', 'radio-tick')}<span>Anada</span></label>
               <label class="radio-label"><input type="checkbox" name="busReturn" aria-controls="bus-return-hours" disabled>${icon('check', 'radio-tick')}<span>Tornada</span></label>
             </div>
             <fieldset class="bus-return-hours" id="bus-return-hours" hidden>
               <legend>Hora de tornada <span aria-hidden="true">*</span></legend>
-              <div class="bus-options">${w.busReturnTimes.map(time => `<label class="radio-label"><input type="radio" name="busReturnTime" value="${escape(time)}" disabled aria-describedby="form-status">${icon('check', 'radio-tick')}<span>${escape(time)}</span></label>`).join('')}</div>
+              <div class="bus-options">${w.busReturnTimes.map(time => `<label class="radio-label"><input type="radio" name="busReturnTime" value="${escape(time)}" disabled aria-describedby="form-status"><span>${escape(time)}</span></label>`).join('')}</div>
             </fieldset>
           </fieldset>
           <div class="form-field"><label for="dietary">Dieta especial?</label><textarea class="auto-grow" id="dietary" name="dietary" rows="1" maxlength="1500" placeholder="Al·lèrgies, intoleràncies, dieta vegetariana, vegana..." disabled></textarea></div>

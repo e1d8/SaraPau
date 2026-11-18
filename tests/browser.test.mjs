@@ -1353,6 +1353,15 @@ test('Google rep un POST amb tots els invitats i només una recepció vàlida de
   assert.equal(await page.locator('iframe[name^="rsvp-"]').count(), 0);
   assert.equal(await page.locator('form[target^="rsvp-"]').count(), 0);
   assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
+  const heart = page.locator('.success-heart');
+  await heart.scrollIntoViewIfNeeded();
+  assert.equal(await heart.evaluate(el => {
+    const title = document.querySelector('#rsvp-success-title');
+    return el.getBoundingClientRect().bottom < title.getBoundingClientRect().top && getComputedStyle(el).maskImage.includes('/heart.svg');
+  }), true);
+  assert.equal(await heart.evaluate(el => el.getAnimations().length), 0, 'Amb moviment reduït el cor es veu estàtic');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.waitForFunction(() => document.querySelector('.success-heart').getAnimations().some(animation => animation.animationName === 'cupid-hover'));
   await page.close();
 });
 

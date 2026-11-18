@@ -308,22 +308,28 @@ function createNameOrnament(part = 'rings') {
   return svg;
 }
 
-// Sis cors reutilitzables: les animacions només viuen mentre es veu el botó.
+// El Cupido, les bombolles i el cor d'èxit suren quan estan a la vista.
 function setupInvitationMotion(preference) {
-  const invitation = document.querySelector('.rsvp-invitation');
-  if (!invitation) return;
-  const section = invitation.closest('#rsvp');
-  let inView = !('IntersectionObserver' in window);
-  const update = () => invitation.classList.toggle('is-floating',
-    inView && !preference.matches && !document.hidden && !section.querySelector('dialog[open]'));
-  if ('IntersectionObserver' in window) {
+  const section = document.querySelector('#rsvp');
+  if (!section) return;
+  const panels = [...section.querySelectorAll('.rsvp-invitation, .rsvp-success')];
+  const canObserve = 'IntersectionObserver' in window;
+  const inView = new Set(canObserve ? [] : panels);
+  const update = () => {
+    const canFloat = !preference.matches && !document.hidden && !section.querySelector('dialog[open]');
+    for (const panel of panels) panel.classList.toggle('is-floating', canFloat && !panel.hidden && inView.has(panel));
+  };
+  if (canObserve) {
     const observer = new IntersectionObserver(entries => {
-      inView = entries[0].isIntersecting;
+      for (const entry of entries) {
+        if (entry.isIntersecting) inView.add(entry.target);
+        else inView.delete(entry.target);
+      }
       update();
     }, { rootMargin: '32px 0px' });
-    observer.observe(invitation);
+    panels.forEach(panel => observer.observe(panel));
   }
-  new MutationObserver(update).observe(section, { attributes: true, attributeFilter: ['open'], subtree: true });
+  new MutationObserver(update).observe(section, { attributes: true, attributeFilter: ['open', 'hidden'], subtree: true });
   preference.addEventListener('change', update);
   document.addEventListener('visibilitychange', update);
   update();
