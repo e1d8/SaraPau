@@ -86,6 +86,29 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
   const deletionName = root.querySelector('#delete-guest-name');
   const submit = root.querySelector('#save-guest');
   const loading = root.querySelector('#rsvp-loading');
+  // Fixar el cos evita que els gestos i el focus moguen el fons en mòbil,
+  // inclòs Safari. El bloqueig continua mentre quede qualsevol modal obert.
+  const pageRoot = document.documentElement;
+  let pagePosition = null;
+  const restorePageScroll = () => {
+    if (!pagePosition || dialog.open || loading.open) return;
+    const { x, y } = pagePosition;
+    pagePosition = null;
+    pageRoot.classList.remove('modal-locked');
+    pageRoot.style.removeProperty('--modal-scroll-offset');
+    window.scrollTo({ left: x, top: y, behavior: 'instant' });
+  };
+  const openModal = modal => {
+    if (!pagePosition) {
+      pagePosition = { x: window.scrollX, y: window.scrollY };
+      pageRoot.style.setProperty('--modal-scroll-offset', `${-pagePosition.y}px`);
+      pageRoot.classList.add('modal-locked');
+    }
+    try { modal.showModal(); }
+    catch (error) { restorePageScroll(); throw error; }
+  };
+  dialog.addEventListener('close', restorePageScroll);
+  loading.addEventListener('close', restorePageScroll);
   const success = root.querySelector('#rsvp-success');
   const failure = root.querySelector('#rsvp-error-view');
   const errorTitle = root.querySelector('#rsvp-error-title');
@@ -378,7 +401,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
       renderGuests();
       showView('manager', false);
     }
-    dialog.showModal();
+    openModal(dialog);
     focusView();
   });
   add.addEventListener('click', () => openGuest());
@@ -474,7 +497,7 @@ export function setupRsvp(root = document, { sendReplies = sendConfiguredReplies
     send.disabled = true;
     confirmSend.disabled = true;
     pending = new AbortController();
-    loading.showModal();
+    openModal(loading);
     loading.querySelector('h3').focus();
     let received = false;
     let sendError;

@@ -1,3 +1,4 @@
+import { wedding } from '../assets/js/content.js';
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -63,18 +64,49 @@ test('La landing mostra les seccions sol·licitades dins de /SaraPau/ en escript
       }));
       assert.deepEqual(mediumStyles[0], mediumStyles[1]);
       assert.deepEqual(await page.locator('.hero-copy > *').evaluateAll(elements => elements.map(el => el.classList[0])), ['signature', 'hero-date', 'hero-opening']);
-      for (const [index, illustration] of ['esglesia-major', 'autobus', 'cotidia', 'focs-artificials'].entries()) {
+      for (const [index, illustration] of ['esglesia-major', 'cotxe', 'copes', 'focs-artificials'].entries()) {
         const art = page.locator('.timeline-item').nth(index).locator(`.art-${illustration}`);
         assert.equal(await art.count(), 1);
         assert.equal(await art.evaluate(el => el.getBoundingClientRect().width > el.offsetWidth), true, 'La imatge creix visualment sense eixamplar la columna');
+      }
+      const illustrationSizes = await page.locator('.timeline-art').evaluateAll(elements => elements.map(el => {
+        const { width, height } = el.getBoundingClientRect();
+        return [width, height];
+      }));
+      for (const [artWidth, artHeight] of illustrationSizes) {
+        assert.ok(Math.abs(artWidth - illustrationSizes[0][0]) < 1 && Math.abs(artHeight - illustrationSizes[0][1]) < 1,
+          'Les quatre il·lustracions tenen la mateixa mida, independentment del text i de l’apartat');
+        assert.ok(Math.abs(artWidth - artHeight) < 1, 'La caixa comuna és quadrada i conserva les proporcions del dibuix');
       }
       if (width > 760) {
         const tops = await page.locator('.timeline-time').evaluateAll(times => times.map(el => el.getBoundingClientRect().top));
         assert.ok(Math.abs(tops[0] - tops[1]) < 1, 'Les hores de la primera fila estan alineades');
         assert.ok(Math.abs(tops[2] - tops[3]) < 1, 'Les hores de la segona fila estan alineades');
       }
+      if (width <= 760) {
+        assert.equal(await page.locator('.timeline-item').evaluateAll(items => items.every(item => {
+          const copy = item.querySelector('.timeline-copy').getBoundingClientRect();
+          const art = item.querySelector('.timeline-art').getBoundingClientRect();
+          return art.top > copy.bottom && Math.abs((copy.left + copy.right) / 2 - (art.left + art.right) / 2) < 1;
+        })), true, 'En mòbil cada imatge queda davall del seu text i al mateix centre');
+      }
       assert.equal(await page.locator('.closing-message').textContent(), 'LO MILLOR DE LA TERRETA, LA NOSTRA GENT.');
-      assert.ok((await page.locator('.bank-account').textContent()).includes('ES11 0049 0070 1525 9029 9271'));
+      assert.equal(await page.locator('.rsvp > .closing-message').count(), 1);
+      assert.equal(await page.locator('.closing-message').evaluate(el => getComputedStyle(el).textAlign), 'center');
+      assert.equal(await page.locator('.closing-message').evaluate(el => !!(el.compareDocumentPosition(document.querySelector('#open-rsvp')) & Node.DOCUMENT_POSITION_FOLLOWING)), true);
+      assert.equal(await page.locator('.celebration .gift-message').textContent(), 'El millor regal és compartir aquest dia amb vosaltres. Gràcies de tot cor!');
+      const giftStyles = await page.locator('.gift-message,.timeline-item:nth-child(3) h3').evaluateAll(elements => elements.map(el => {
+        const s = getComputedStyle(el); return [s.fontFamily,s.fontSize,s.fontWeight,s.color,s.letterSpacing,s.lineHeight];
+      }));
+      assert.deepEqual(giftStyles[0], giftStyles[1]);
+      assert.equal(await page.locator('.timeline-item').nth(1).locator('a').count(), 1);
+      assert.match(await page.locator('.timeline-item').nth(1).locator('a').textContent(), /^Lluïssos/);
+      assert.equal(await page.locator('.timeline-item').nth(3).locator('a').count(), 0);
+      assert.ok((await page.locator('.timeline-item').nth(1).textContent()).includes('El Invernadero'));
+      assert.ok((await page.locator('.timeline-item').nth(3).textContent()).includes('El Invernadero'));
+      assert.ok((await page.locator('.timeline-item').nth(3).textContent()).includes('Lluïssos'));
+
+      assert.ok((await page.locator('.bank-account').textContent()).includes(wedding.bankAccount));
       assert.equal(await page.locator('.site-footer h2').textContent(), 'Algun dubte?');
       assert.match(await page.locator('.footer-names').evaluate(el => {
         const visible = el.cloneNode(true);
@@ -525,7 +557,7 @@ test('L’accés amb teclat, la localització i els enllaços antics funcionen',
     const visible = el.cloneNode(true);
     visible.querySelectorAll('.sr-only').forEach(node => node.remove());
     return visible.textContent;
-  }), 'Mos casarem a l’església arxiprestal major Sant Jaume de Vila-real');
+  }), 'Ens casarem a l’església arxiprestal major Sant Jaume de Vila-real');
   for (const link of await page.locator('.timeline a').all()) {
     const name = await link.textContent();
     const address = new URL(await link.getAttribute('href')).searchParams.get('query');
@@ -560,6 +592,97 @@ async function saveGuest(page, { name, attendance = 'no', bus = 'none', dietary 
   assert.equal(await page.locator('#guest-saved').isVisible(), true);
   await page.locator('#continue-replies').click();
 }
+
+test('En mòbil totes les finestres bloquegen el fons i restauren la posició en tancar', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 568 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  await load(page);
+  // Controlar la recepció sense fer cap enviament real.
+  await page.evaluate(async () => {
+    const old = document.querySelector('#rsvp');
+    const next = old.cloneNode(true);
+    old.replaceWith(next);
+    const { setupRsvp } = await import('./assets/js/rsvp.js');
+    setupRsvp(next, { sendReplies: () => new Promise((resolve, reject) => {
+      window.receiveReplies = () => resolve({ received: true });
+      window.failReplies = () => reject(new Error('Error de prova'));
+    }) });
+  });
+  await page.locator('#open-rsvp').scrollIntoViewIfNeeded();
+  const pageY = await page.evaluate(() => scrollY);
+  const heroTop = await page.locator('#hero-title').evaluate(el => el.getBoundingClientRect().top);
+  const touch = await page.context().newCDPSession(page);
+  const swipe = (x, y, distance = -160) => touch.send('Input.synthesizeScrollGesture', {
+    x, y, yDistance: distance, speed: 800, gestureSourceType: 'touch',
+  });
+  const assertLocked = async () => {
+    await swipe(4, 300); // Gest en el fons, fora dels límits de la finestra.
+    await swipe(120, 55); // Gest sobre la capçalera, que no és desplaçable.
+    await page.mouse.move(4, 300);
+    await page.mouse.wheel(0, 400);
+    await page.evaluate(() => scrollBy({ top: 120, behavior: 'instant' }));
+    assert.ok(Math.abs(await page.locator('#hero-title').evaluate(el => el.getBoundingClientRect().top) - heroTop) < 1,
+      'Els gestos, la roda i el focus no desplacen la pàgina de darrere');
+    assert.equal(await page.locator('.page-scrollbar').isVisible(), false);
+  };
+  const assertRestored = async () => {
+    await page.waitForFunction(y => Math.abs(scrollY - y) < 1, pageY);
+    assert.equal(await page.evaluate(() => getComputedStyle(document.body).position), 'static');
+    assert.ok(Math.abs(await page.locator('#hero-title').evaluate(el => el.getBoundingClientRect().top) - heroTop) < 1);
+  };
+  const assertInnerScroll = async selector => {
+    const area = page.locator(selector);
+    await area.evaluate(el => { el.scrollTop = 0; });
+    const box = await area.boundingBox();
+    await swipe(box.x + box.width / 2, box.y + box.height - 15, -90);
+    assert.ok(await area.evaluate(el => el.scrollTop > 0), `${selector}: el contingut de la finestra continua desplaçant-se`);
+    await area.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    await assertLocked();
+  };
+
+  await openRsvp(page);
+  await assertLocked();
+  for (const name of ['Aina', 'Berta', 'Carles', 'Dídac', 'Eva']) await saveGuest(page, { name });
+  await assertInnerScroll('#guest-list-scroll');
+  await page.locator('.guest-edit').first().click();
+  await page.getByLabel('Sí, allí estaré!').check();
+  await page.locator('[name="bus"][value="none"]').check();
+  await page.locator('#dietary').fill('Comentari llarg\n'.repeat(8));
+  await assertInnerScroll('#guest-fields');
+  await page.locator('#close-guest-dialog').click();
+  await assertLocked();
+  await page.locator('.guest-delete').first().click();
+  await assertLocked();
+  await page.locator('#cancel-delete-guest').click();
+  await page.locator('#add-guest').click();
+  await page.locator('#guest-name').fill('Ferran');
+  await page.getByLabel('No podré vindre').check();
+  await page.locator('#save-guest').click();
+  await assertLocked();
+  await page.locator('#continue-replies').click();
+  await page.locator('#send-replies').click();
+  await assertInnerScroll('#review-scroll');
+  await page.locator('#confirm-send').click();
+  await page.waitForFunction(() => typeof window.failReplies === 'function');
+  await assertLocked();
+  await page.evaluate(() => window.failReplies());
+  await page.locator('#rsvp-error-title').waitFor({ state: 'visible' });
+  await assertLocked();
+  await page.locator('#close-guest-dialog').click();
+  await assertRestored();
+
+  await openRsvp(page);
+  await assertLocked();
+  await page.locator('#send-replies').click();
+  await page.locator('#confirm-send').click();
+  await page.waitForFunction(() => document.querySelector('#rsvp-loading').open);
+  await page.evaluate(() => window.receiveReplies());
+  await page.locator('#rsvp-success').waitFor({ state: 'visible' });
+  await assertRestored();
+  // En tancar l'última finestra, la pàgina torna a desplaçar-se normalment.
+  await page.evaluate(() => scrollBy({ top: -120, behavior: 'instant' }));
+  assert.ok(await page.evaluate(y => scrollY < y - 100, pageY));
+  await page.close();
+});
 
 test('Les capçaleres queden fixes i els botons compartixen tipografia i amplària segons el text', async () => {
   for (const width of [1366, 320]) {
@@ -1486,7 +1609,7 @@ test('La còpia de l’IBAN alterna la icona i el tick amb clic, hover i pressi�
   assert.equal(await copy.locator('.copy-check').isVisible(), false);
   await copy.click();
   await page.waitForFunction(() => document.querySelector('#copy-iban').dataset.copied === 'true');
-  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'ES11 0049 0070 1525 9029 9271');
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), wedding.bankAccount);
   assert.equal(await copy.locator('.copy-check').isVisible(), true);
   assert.equal(await copy.locator('svg.copy-check path').count(), 1);
   assert.equal(await copy.locator('.copy-icon').isVisible(), false);

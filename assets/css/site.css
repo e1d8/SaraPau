@@ -38,6 +38,9 @@ html:has(.guest-dialog[open],.loading-dialog[open]) .page-scrollbar{display:none
 html.intro-locked{overflow:hidden;overscroll-behavior:none;scroll-behavior:auto}
 .intro-locked body{position:fixed;inset:0;width:100%;overflow:hidden;touch-action:none}
 .intro-locked .page-scrollbar{display:none}
+html.modal-locked{overflow:hidden;overscroll-behavior:none;scroll-behavior:auto}
+.modal-locked body{position:fixed;top:var(--modal-scroll-offset);left:0;width:100%;overflow:hidden;overscroll-behavior:none}
+.modal-locked .page-scrollbar{display:none}
 body{margin:0;background:var(--white);font-size:16px;line-height:1.45;overflow-x:clip;isolation:isolate}
 body,button,input,textarea{font-family:"More Sugar",sans-serif}
 main,.site-footer{max-width:1366px;margin-inline:auto}
@@ -87,10 +90,12 @@ strong{font-weight:400}
 .art-champagne{--illustration:url("../illustrations/champagne.svg");aspect-ratio:1261/2000}
 .art-taula{--illustration:url("../illustrations/taula.svg");aspect-ratio:538/490}
 .art-autobus{--illustration:url("../illustrations/autobus.svg");aspect-ratio:570/263}
+.art-cotxe{--illustration:url("../illustrations/cotxe.svg");aspect-ratio:1}
+.art-copes{--illustration:url("../illustrations/copes.svg");aspect-ratio:439/473}
 .art-cotidia{--illustration:url("../illustrations/cotidia.svg");aspect-ratio:568/520}
 .art-focs-artificials{--illustration:url("../illustrations/focs-artificials.svg");aspect-ratio:560/516}
 /* Estos vectors ja tenen el verd i zones blanques: conservar els colors originals. */
-.art-taula,.art-autobus,.art-cotidia,.art-rames-taronger{mask-image:none;background:transparent var(--illustration) center/contain no-repeat}
+.art-taula,.art-autobus,.art-cotidia,.art-rames-taronger,.art-cotxe,.art-copes{mask-image:none;background:transparent var(--illustration) center/contain no-repeat}
 
 .home-hero{overflow:visible;text-align:center;padding-top:96px}
 .hero-copy{padding-inline:24px}
@@ -112,18 +117,19 @@ strong{font-weight:400}
 .ceremony .venue-name{font-size:37px;margin-bottom:22px}
 .calendar .art{width:100%}
 .calendar p{font-size:37px;color:var(--primary);margin-top:13px;font-weight:400;text-transform:uppercase}
-.timeline{padding-top:65px;padding-bottom:70px;text-align:center}
+.timeline{--timeline-art-size:112px;padding-top:65px;padding-bottom:70px;text-align:center}
 .timeline ol{list-style:none;padding:0;margin:0 auto;max-width:918px;display:grid;grid-template-columns:1fr 1fr;gap:42px 30px}
-.timeline-item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.7fr);align-items:center;gap:16px}
-.timeline-item.image-right{grid-template-columns:minmax(0,2.7fr) minmax(0,1fr)}
-.timeline-art{position:relative;z-index:0;width:100%;max-width:112px;max-height:128px;justify-self:center;scale:1.3}
+.timeline-item{display:grid;grid-template-columns:var(--timeline-art-size) minmax(0,1fr);align-items:center;gap:16px}
+.timeline-item.image-right{grid-template-columns:minmax(0,1fr) var(--timeline-art-size)}
+/* Una caixa comuna manté la mida dels dibuixos independent del text i del seu format. */
+.timeline-art{position:relative;z-index:0;width:var(--timeline-art-size);height:var(--timeline-art-size);aspect-ratio:1;justify-self:center;scale:1.3}
 .timeline-art.is-flipped{transform:scaleX(-1)}
 .timeline-copy{position:relative;z-index:1;min-width:0;align-self:start}
 .image-right .timeline-art{grid-column:2;grid-row:1}
 .image-right .timeline-copy{grid-column:1;grid-row:1}
 .timeline-copy>p:last-child{font-size:14px;line-height:1.7}
 .timeline-time{font-size:32px;color:var(--primary);font-weight:400;line-height:1.2}
-.timeline h3,.success-thanks{font-size:var(--text-medium);text-transform:uppercase;margin:10px 0 8px}
+.timeline h3,.success-thanks,.gift-message{font-size:var(--text-medium);text-transform:uppercase;margin:10px 0 8px}
 
 .directions{padding-block:38px 70px;text-align:center}
 .directions h2{font-size:38px}
@@ -171,7 +177,7 @@ strong{font-weight:400}
 .guest-add-outline rect{width:calc(100% - 3px);height:calc(100% - 3px)}
 .guest-add{font-size:34px;line-height:1;box-shadow:none}
 .guest-add-outline{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-.guest-dialog{width:min(800px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);overflow:hidden;margin:auto;padding:24px;border:1.5px solid var(--primary);border-radius:14px;background:var(--white);color:var(--dark)}
+.guest-dialog{width:min(800px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);overflow:hidden;overscroll-behavior:none;margin:auto;padding:24px;border:1.5px solid var(--primary);border-radius:14px;background:var(--white);color:var(--dark)}
 .guest-dialog[open]{display:flex;flex-direction:column}
 .guest-dialog::backdrop{background:rgb(61 65 39 / 45%)}
 .guest-dialog::-webkit-scrollbar,.dialog-scroll::-webkit-scrollbar{width:6px;height:6px}
@@ -207,7 +213,7 @@ strong{font-weight:400}
 .error-diagnostic dt{font-weight:400}
 .error-diagnostic dd{margin:0;white-space:pre-wrap}
 html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
-.loading-dialog{position:fixed;inset:0;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;padding:24px;border:0;background:rgb(255 255 255 / 97%);color:var(--primary)}
+.loading-dialog{position:fixed;inset:0;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;padding:24px;border:0;background:rgb(255 255 255 / 97%);color:var(--primary);overscroll-behavior:none}
 .loading-dialog[open]{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;text-align:center}
 .loading-dialog h3{font-size:24px;color:var(--primary)}
 .loading-spinner{width:52px;height:52px;border:3px solid var(--secondary);border-top-color:var(--primary);border-radius:50%;animation:loading-turn 1s linear infinite}
@@ -256,7 +262,9 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 .celebration{padding-top:12px;padding-bottom:60px;text-align:center}
 .banquet-divider{position:relative;width:100%;aspect-ratio:4810/1483;margin-inline:auto}
 .banquet-divider .art{position:absolute;top:50%;left:50%;width:110vw;transform:translate(-50%,-50%);z-index:-1}
-.closing-message{max-width:700px;margin:44px auto 0;font-size:23px;color:var(--primary);font-weight:400;line-height:1.5;text-transform:uppercase;text-wrap:balance}
+.closing-message{max-width:700px;margin:44px auto 0;font-size:23px;color:var(--primary);font-weight:400;line-height:1.5;text-transform:uppercase;text-wrap:balance;text-align:center}
+.rsvp>.closing-message{margin:0 auto 128px}
+.gift-message{max-width:700px;margin:60px auto 0;font-weight:400;line-height:1.12;color:var(--dark);text-wrap:pretty}
 .bank-account{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:38px;font-size:18px;letter-spacing:.08em;white-space:nowrap}
 .copy-iban{display:inline-flex;justify-content:center;align-items:center;flex-shrink:0;min-width:44px;min-height:44px;padding:9px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--primary)}
 .copy-iban .handdrawn-icon{width:20px;height:20px}
@@ -277,14 +285,18 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
   .travel-options{gap:40px}
 }
 @media(max-width:760px){
-  .timeline-item.is-transport{transform:scale(.9);transform-origin:center}
+  .timeline-item.is-transport .timeline-copy{transform:scale(.9);transform-origin:top center}
   :root{scroll-padding-top:16px;--text-medium:17px}
   body{font-size:15px}.section{padding-inline:24px}h2{font-size:32px}
   .button{font-size:16px;padding:13px 18px;min-height:52px}
   .home-hero{padding-top:52px}.hero-copy{padding-inline:24px}.hero-opening{max-width:520px;font-size:14px;line-height:1.8}
   .home-hero h1{font-size:clamp(66px,16vw,104px);line-height:1.25}.hero-date{margin-top:12px}
   .ceremony{grid-template-columns:1fr;gap:35px;padding-block:48px 40px;text-align:center}.ceremony>div:not(.calendar){padding-top:0}.ceremony h2,.ceremony .venue-name{font-size:32px}.ceremony .calendar{grid-row:2;max-width:270px;width:100%;margin:auto}.ceremony p{font-size:15px}.calendar p{font-size:30px}.ceremony .text-link{margin-top:22px}
-  .timeline{padding-block:35px 48px}.timeline ol{grid-template-columns:1fr;gap:36px;max-width:450px}.timeline-item{gap:12px}.timeline-art{max-width:96px;max-height:112px}.timeline h3,.success-thanks{font-size:17px}.timeline-copy>p:last-child{font-size:14px;max-width:410px;margin:auto}.timeline-time{font-size:30px}
+  .timeline{--timeline-art-size:96px;padding-block:35px 48px}.timeline ol{grid-template-columns:1fr;gap:36px;max-width:450px}.timeline-item{gap:12px}.timeline h3,.success-thanks,.gift-message{font-size:17px}.timeline-copy>p:last-child{font-size:14px;max-width:410px;margin:auto}.timeline-time{font-size:30px}
+  .timeline ol{gap:56px}
+  .timeline-item,.timeline-item.image-right{grid-template-columns:minmax(0,1fr);gap:32px;justify-items:center}
+  .timeline-item .timeline-copy{grid-column:1;grid-row:1;width:100%;text-align:center}
+  .timeline-item .timeline-art{grid-column:1;grid-row:2}
   .directions{padding-block:30px 48px}.directions h2{font-size:32px}.travel-options{grid-template-columns:1fr;gap:30px;max-width:430px;margin-top:28px}.travel-options h3{font-size:23px;margin-bottom:12px}.travel-options p{font-size:14px}
   .rsvp{--rsvp-button-size:16px;padding-block:30px 48px}.rsvp .button{padding-inline:14px}.rsvp-panel{max-width:500px}.form-heading{font-size:34px}.form-notice{font-size:12px;margin-bottom:26px}.form-field>label,.attendance legend,.bus-choice legend{font-size:15px}
   .rsvp-invitation{margin-top:56px}.invitation-cupid{left:-78px;top:-74px;width:92px}
@@ -292,7 +304,7 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
   .rsvp:is([data-state="success"],[data-state="error"]) .form-heading{font-size:clamp(29px,9vw,34px)}
   .guest-list{gap:8px}.guest-card{gap:4px;padding-inline:8px}.guest-add-outline rect{width:calc(100% - 3px);height:calc(100% - 3px)}
 .guest-add{font-size:29px}.guest-dialog{padding:20px}.guest-dialog-header h3{font-size:22px}
-  .celebration{padding-top:10px;padding-bottom:40px}.closing-message{font-size:20px;margin-top:32px;max-width:420px}.bank-account{font-size:clamp(12px,3.5vw,17px);letter-spacing:.04em;margin-top:28px}
+  .celebration{padding-top:10px;padding-bottom:40px}.closing-message{font-size:20px;margin-top:32px;max-width:420px}.bank-account{font-size:clamp(12px,3.5vw,17px);letter-spacing:.04em;margin-top:28px}.gift-message{margin-top:44px}.rsvp>.closing-message{margin-bottom:110px}
   .site-footer{gap:12px;padding-block:15px 28px}.site-footer h2,.footer-names,.name-separator{font-size:12px}.footer-names{gap:7px}
 }
 @media(max-width:374px){

@@ -14,6 +14,7 @@ const placeLink = key => {
 
 function rsvp() {
   return `<section class="rsvp section" id="rsvp" aria-label="Confirmació">
+    <p class="closing-message">${escape(w.home.farewell)}</p>
     <div class="rsvp-panel"><div class="rsvp-invitation">
       <div class="invitation-decor" aria-hidden="true">${art('cupid', 'invitation-cupid')}<span class="heart-bubbles">${Array.from({ length: 6 }, () => `<span class="heart-bubble">${icon('heart', 'bubble-heart')}${icon('burst', 'bubble-pop')}</span>`).join('')}</span></div>
       <button class="button rsvp-trigger" id="open-rsvp" type="button" aria-haspopup="dialog" aria-controls="guest-dialog">Vindràs?</button>
@@ -61,9 +62,9 @@ function rsvp() {
 function landing() {
   return `<main id="contingut">
     <section class="home-hero" aria-labelledby="hero-title"><div class="hero-copy"><h1 class="signature" id="hero-title">${escape(w.couple)}</h1><p class="hero-date"><time datetime="${escape(w.date)}">${escape(w.dateShort)}</time></p><p class="hero-opening">${escape(w.home.opening)}</p></div></section>
-    <section class="timeline section" id="detalls" aria-label="Programa de la boda"><ol>${w.timeline.map(item => `<li class="timeline-item image-${escape(item.imageSide)}${item.kind === 'transport' ? ' is-transport' : ''}">${art(item.illustration, `timeline-art${item.imageFlipped ? ' is-flipped' : ''}`)}<div class="timeline-copy"><p class="timeline-time">${escape(item.time)}</p><h3>${escape(item.title)}</h3><p>${item.parts.map(part => typeof part === 'string' ? escape(part) : placeLink(part.place)).join('')}</p></div></li>`).join('')}</ol></section>
+    <section class="timeline section" id="detalls" aria-label="Programa de la boda"><ol>${w.timeline.map(item => `<li class="timeline-item image-${escape(item.imageSide)}${item.kind === 'transport' ? ' is-transport' : ''}">${art(item.illustration, `timeline-art${item.imageFlipped ? ' is-flipped' : ''}`)}<div class="timeline-copy"><p class="timeline-time">${escape(item.time)}</p><h3>${escape(item.title)}</h3><p>${item.parts.map(part => typeof part === 'string' ? escape(part) : part.link === false ? escape(w.places[part.place].name) : placeLink(part.place)).join('')}</p></div></li>`).join('')}</ol></section>
     ${rsvp()}
-    <section class="celebration section" aria-label="La nostra gent"><div class="banquet-divider" aria-hidden="true">${art('rames-taronger')}</div><p class="closing-message">${escape(w.home.farewell)}</p><div class="bank-account"><p><span class="sr-only">Compte bancari: </span><span id="iban">${escape(w.bankAccount)}</span></p><button class="copy-iban" id="copy-iban" type="button" aria-label="Copia l’IBAN" title="Copia l’IBAN">${icon('copy', 'copy-icon')}${icon('check', 'copy-check')}</button></div><p class="copy-status sr-only" id="copy-status" role="status" aria-live="polite"></p></section>
+    <section class="celebration section" aria-label="La nostra gent"><div class="banquet-divider" aria-hidden="true">${art('rames-taronger')}</div><p class="gift-message">${escape(w.home.giftMessage)}</p><div class="bank-account"><p><span class="sr-only">Compte bancari: </span><span id="iban">${escape(w.bankAccount)}</span></p><button class="copy-iban" id="copy-iban" type="button" aria-label="Copia l’IBAN" title="Copia l’IBAN">${icon('copy', 'copy-icon')}${icon('check', 'copy-check')}</button></div><p class="copy-status sr-only" id="copy-status" role="status" aria-live="polite"></p></section>
   </main><footer class="site-footer"><h2>Algun dubte?</h2><p class="footer-names">${w.contacts.map(contact => external(`https://wa.me/${contact.phone}`, contact.name)).join(' <span class="name-separator">·</span> ')}</p></footer>`;
 }
 

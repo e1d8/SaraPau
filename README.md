@@ -22,7 +22,9 @@ Edita [assets/js/content.js](assets/js/content.js): noms, data, lloc, horaris i 
 
 Les fotografies estan en `assets/photos/` i les il·lustracions en `assets/illustrations/`. Els camps de contingut de les seccions anteriors s’han conservat per si es recuperen més avant; no es mostren en la landing actual. El títol i la descripció per als cercadors estan en `index.html`.
 
-Les localitzacions estan en `places` i el programa en `timeline`. Cada fragment del programa pot ser un text o una referència `{ place: 'lluisos' }`, que es mostra com un enllaç a Google Maps amb l’adreça corresponent. No hi ha mapa incrustat ni secció «Com arribar-hi».
+Les localitzacions estan en `places` i el programa en `timeline`. Cada fragment del programa pot ser un text o una referència `{ place: 'lluisos' }`, que es mostra com un enllaç a Google Maps amb l’adreça corresponent. Les referències amb `link: false` es mostren com a text sense enllaç. No hi ha mapa incrustat ni secció «Com arribar-hi».
+
+`home.farewell` es mostra entre el programa i «Vindràs?». `home.giftMessage` és la frase de regal situada damunt del compte bancari i utilitza la tipografia dels títols del programa, com «La celebració». En mòbil, cada etapa del programa mostra el text centrat i la seua imatge davall.
 
 L’IBAN té un botó de còpia que es transforma en un tick. El tick, la creu, el cor i la icona de copiar són gràfics SVG amb traç manuscrit i el color del text. En tornar a passar-hi el cursor, reapareix la icona de copiar; en prémer o clicar, es mostra el tick. Utilitza el porta-retalls del navegador, amb una alternativa per selecció si no està disponible. Si el navegador impedix les dos opcions, mostra un missatge per a copiar-lo manualment.
 

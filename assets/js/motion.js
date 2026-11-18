@@ -4,7 +4,7 @@ export function setupMotion() {
   const preference = matchMedia('(prefers-reduced-motion: reduce)');
   setupInvitationMotion(preference);
   if (preference.matches || !('IntersectionObserver' in window) || !Element.prototype.animate) return;
-  const targets = [...document.querySelectorAll('.hero-copy > *, .timeline-item, .rsvp-invitation, .celebration > .banquet-divider, .closing-message, .bank-account, .site-footer > *')];
+  const targets = [...document.querySelectorAll('.hero-copy > *, .timeline-item, .rsvp-invitation, .celebration > .banquet-divider, .closing-message, .gift-message, .bank-account, .site-footer > *')];
   const hero = document.querySelector('.home-hero');
   const introduction = [
     { element: hero.querySelector('h1'), phase: 'names', signature: true },
