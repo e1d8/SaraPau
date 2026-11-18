@@ -103,6 +103,11 @@ strong{font-weight:400}
 .home-hero h1{font-size:114.7px;margin:0;line-height:1.2}
 .name-animating{position:relative}
 .name-source{opacity:0}
+.hero-ornament{overflow:visible;pointer-events:none;user-select:none;fill:none;stroke:var(--primary);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.7}
+.hero-ornament path{stroke-dasharray:1;stroke-dashoffset:0}
+.name-ornament{position:absolute;left:50%;translate:-50% 0}
+.date-ornament{display:block;width:clamp(100px,12vw,150px);height:auto;aspect-ratio:176/40;margin:10px auto 0}
+.ornament-pending{opacity:0}
 .name-stage{position:absolute;inset:-1em;pointer-events:none;user-select:none;overflow:visible;mask-image:linear-gradient(to right,#000 44%,transparent 56%);mask-size:250% 100%;mask-position:0% 0;mask-repeat:no-repeat}
 .name-letter{position:absolute;top:0;box-sizing:content-box;padding:1em;text-align:left;white-space:pre;overflow:visible;transform:translateY(0) scale(1)}
 .name-glyph{display:block}

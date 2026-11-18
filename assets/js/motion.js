@@ -6,6 +6,8 @@ export function setupMotion() {
   if (preference.matches || !('IntersectionObserver' in window) || !Element.prototype.animate) return;
   const targets = [...document.querySelectorAll('.hero-copy > *, .timeline-item, .rsvp-invitation, .celebration > .banquet-divider, .closing-message, .gift-message, .bank-account, .site-footer > *')];
   const hero = document.querySelector('.home-hero');
+  const branches = createNameOrnament('branches');
+  hero.querySelector('.hero-date').append(branches);
   const introduction = [
     { element: hero.querySelector('h1'), phase: 'names', signature: true },
     { element: hero.querySelector('.hero-date'), phase: 'date', duration: 500 },
@@ -17,12 +19,27 @@ export function setupMotion() {
     return animation.finished.then(() => {}, () => {}).finally(() => animations.delete(animation));
   };
   let introActive = !location.hash && scrollY < 80;
+  if (introActive) branches.classList.add('ornament-pending');
   let stopped = false;
   const visible = new Set();
   let revealTimer = null;
   let lastRevealAt = -Infinity;
   const unlockScroll = () => document.documentElement.classList.remove('intro-locked');
   if (introActive) document.documentElement.classList.add('intro-locked');
+  const drawOrnament = ornament => {
+    ornament.classList.remove('ornament-pending');
+    ornament.querySelectorAll('path').forEach(path => {
+      track(path.animate([
+        { strokeDashoffset: '1', opacity: 0, offset: 0 },
+        { opacity: .2, offset: .3 },
+        { opacity: .75, offset: .8 },
+        { strokeDashoffset: '0', opacity: 1, offset: 1 },
+      ], {
+        duration: Number(path.dataset.duration), delay: Number(path.dataset.delay),
+        easing: 'ease-in-out', fill: 'backwards',
+      }));
+    });
+  };
   const reveal = (element, instant = false, { duration = 650, emphasis = false } = {}) => {
     if (!element.classList.contains('reveal-pending')) return Promise.resolve();
     element.classList.remove('reveal-pending');
@@ -47,7 +64,8 @@ export function setupMotion() {
     const stage = document.createElement('span');
     stage.className = 'name-stage';
     stage.setAttribute('aria-hidden', 'true');
-    element.replaceChildren(source, stage);
+    const ornament = createNameOrnament();
+    element.replaceChildren(source, ornament, stage);
     element.classList.add('name-animating');
     let nameResizeObserver;
     let lastAnimation;
@@ -72,6 +90,10 @@ export function setupMotion() {
         const style = getComputedStyle(element);
         const bleed = parseFloat(style.fontSize);
         const lineHeight = parseFloat(style.lineHeight);
+        // Els anells seguixen la mida del nom, sense participar en el flux del text.
+        ornament.style.width = `${Math.min(box.width - 4, ink.width + bleed * 1.2)}px`;
+        ornament.style.height = `${box.height + bleed * .2}px`;
+        ornament.style.top = `${-bleed * .22}px`;
         const stageWidth = box.width + 2 * bleed;
         const left = ink.left - box.left + bleed - bleed * .15;
         const right = ink.right - box.left + bleed + bleed * .15;
@@ -99,6 +121,7 @@ export function setupMotion() {
       track(stage.animate([
         { maskPosition: `${start}% 0` }, { maskPosition: `${end}% 0` },
       ], { duration: curtainDuration, easing: 'linear', fill: 'backwards' }));
+      drawOrnament(ornament);
       entries.forEach(({ character, letter }) => {
         lastAnimation = letter.animate([
           { opacity: 0, transform: 'translateY(12px) scale(.55)', offset: 0 },
@@ -192,6 +215,7 @@ export function setupMotion() {
     introActive = false;
     unlockScroll();
     hero.dataset.intro = 'complete';
+    branches.classList.remove('ornament-pending');
     targets.forEach(element => reveal(element, true));
     animations.forEach(animation => animation.cancel());
     observer.disconnect();
@@ -216,7 +240,10 @@ export function setupMotion() {
       hero.dataset.intro = step.phase;
       if (step.signature) await revealSignature(step.element);
       else if (step.letters) await typewrite(step.element);
-      else await reveal(step.element, false, step);
+      else {
+        if (step.phase === 'date') drawOrnament(branches);
+        await reveal(step.element, false, step);
+      }
     }
     if (stopped) return;
     introActive = false;
@@ -225,6 +252,38 @@ export function setupMotion() {
     observeRemaining();
   };
   document.fonts.ready.then(() => { if (!stopped) return runIntroduction(); }).catch(showEverything);
+}
+
+// Anells sobre els noms i rametes baix de la data, dibuixats en dos moments.
+function createNameOrnament(part = 'rings') {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.classList.add('hero-ornament', part === 'rings' ? 'name-ornament' : 'date-ornament');
+  svg.setAttribute('viewBox', part === 'rings' ? '0 0 640 200' : '232 160 176 40');
+  svg.setAttribute('preserveAspectRatio', part === 'rings' ? 'none' : 'xMidYMid meet');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const strokes = part === 'rings' ? [
+    ['M316 11C308 3 296 7 295 18S302 37 313 34C324 31 324 18 316 11', 0, 1100],
+    ['M329 10C321 4 310 11 311 23S324 38 332 30C339 23 337 14 329 10', 100, 1100],
+    ['M283 23C274 25 266 23 262 22M354 22C362 25 371 24 378 22', 200, 950],
+  ] : [
+    // Les fulles apareixen després de la tija, com un dibuix a ploma.
+    ['M236 183C264 174 285 193 319 192S372 175 404 183', 0, 650],
+    ['M265 183C255 174 252 164 258 166C266 169 267 177 265 183M265 183C257 185 247 179 250 176C255 173 263 178 265 183', 150, 450],
+    ['M284 189C276 181 277 171 281 173C288 177 286 184 284 189M284 189C276 193 267 190 268 187C270 182 278 185 284 189', 250, 450],
+    ['M355 187C354 178 358 169 362 172C367 178 360 184 355 187M355 187C363 183 372 184 372 188C369 193 361 191 355 187', 350, 450],
+    ['M375 182C375 173 381 164 385 168C388 174 381 179 375 182M375 182C383 178 392 178 393 182C390 187 381 186 375 182', 450, 450],
+  ];
+  for (const [d, delay, duration] of strokes) {
+    const path = document.createElementNS(svg.namespaceURI, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('pathLength', '1');
+    path.setAttribute('vector-effect', 'non-scaling-stroke');
+    path.dataset.delay = delay;
+    path.dataset.duration = duration;
+    svg.append(path);
+  }
+  return svg;
 }
 
 // Sis cors reutilitzables: les animacions només viuen mentre es veu el botó.

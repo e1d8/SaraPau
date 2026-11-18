@@ -170,7 +170,25 @@ test('La benvinguda mostra noms, data i missatge abans de revelar la resta', asy
   })), true, 'El títol i els seus contenidors deixen espai als ornaments');
   assert.equal(await page.getByRole('heading', { name: 'Sara i Pau', exact: true }).count(), 1);
   assert.equal(await title.locator('.name-letter').evaluateAll(letters => letters.some(el => el.getAnimations().some(animation => animation.playState === 'running'))), true);
+  const ornament = title.locator('.name-ornament');
+  assert.equal(await ornament.getAttribute('aria-hidden'), 'true');
+  assert.equal(await ornament.locator('path').count(), 3, 'Només queden els dos anells i les ratlletes laterals');
+  const branches = page.locator('.hero-date .date-ornament');
+  assert.equal(await branches.locator('path').count(), 5);
+  assert.equal(await branches.evaluate(el => getComputedStyle(el).opacity), '0', 'Les rametes encara no apareixen amb els noms');
+  assert.equal(await branches.evaluate(el => el.getAnimations({ subtree: true }).length), 0);
+  const strokes = await ornament.locator('path').evaluateAll(paths => paths.map(path => {
+    const animation = path.getAnimations()[0];
+    return { running: animation.playState === 'running', delay: animation.effect.getTiming().delay,
+      keyframes: animation.effect.getKeyframes().filter(frame => frame.strokeDashoffset !== undefined).map(frame => frame.strokeDashoffset) };
+  }));
+  assert.ok(strokes.some(stroke => stroke.running), 'Els traços s’escriuen mentre apareixen els noms');
+  assert.ok(new Set(strokes.map(stroke => stroke.delay)).size > 1, 'Els anells i les ratlletes apareixen progressivament');
+  assert.ok(strokes.every(stroke => parseFloat(stroke.keyframes[0]) === 1 && parseFloat(stroke.keyframes.at(-1)) === 0));
   await phase('date');
+  assert.ok(parseFloat(await branches.evaluate(el => getComputedStyle(el).opacity)) > 0);
+  assert.equal(await branches.locator('path').evaluateAll(paths => paths.every(path => path.getAnimations().some(animation => animation.playState === 'running'))), true,
+    'Les rametes comencen a dibuixar-se amb la data');
   assert.equal(await page.locator('#hero-title').evaluate(el => getComputedStyle(el).opacity), '1');
   assert.equal(await page.locator('.hero-opening').evaluate(el => el.classList.contains('reveal-pending')), true);
   assert.equal(await page.locator('.timeline-item').first().evaluate(el => el.classList.contains('reveal-pending')), true);
@@ -184,6 +202,8 @@ test('La benvinguda mostra noms, data i missatge abans de revelar la resta', asy
   assert.equal(await page.locator('.hero-opening').evaluate(el => el.getBoundingClientRect().height), messageHeight);
   assert.equal(await page.locator('.timeline-item').first().evaluate(el => el.classList.contains('reveal-pending')), true);
   await phase('complete');
+  assert.equal(await ornament.locator('path').evaluateAll(paths => paths.every(path => parseFloat(getComputedStyle(path).strokeDashoffset) === 0)), true);
+  assert.equal(await branches.locator('path').evaluateAll(paths => paths.every(path => parseFloat(getComputedStyle(path).strokeDashoffset) === 0)), true);
   assert.equal(await page.locator('.type-letter').evaluateAll(letters => letters.every(el => getComputedStyle(el).opacity === '1')), true);
   assert.equal(await page.locator('.hero-opening').evaluate(el => getComputedStyle(el).opacity), '1');
   await page.waitForFunction(() => !document.querySelector('.timeline-item').classList.contains('reveal-pending'));
@@ -195,6 +215,17 @@ test('La màscara ampliada conté els traços reals de cada lletra durant el reb
     const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'no-preference' });
     await page.goto(`${origin}${prefix}/index.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.querySelectorAll('.name-letter').length > 0);
+    assert.equal(await page.locator('.name-ornament').evaluate(el => {
+      const box = el.getBoundingClientRect();
+      const date = document.querySelector('.hero-date').getBoundingClientRect();
+      return box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom < date.top - 8;
+    }), true, `${width}px: el marc cap en pantalla i deixa espai per a la data`);
+    assert.equal(await page.locator('.date-ornament').evaluate(el => {
+      const box = el.getBoundingClientRect();
+      const date = document.querySelector('.hero-date time').getBoundingClientRect();
+      const message = document.querySelector('.hero-opening').getBoundingClientRect();
+      return box.left >= 0 && box.right <= innerWidth && box.top > date.bottom && box.bottom < message.top;
+    }), true, `${width}px: les rametes queden baix de la data i abans del missatge`);
     const ink = await page.evaluate(() => {
       for (const animation of document.getAnimations()) {
         const { delay, duration } = animation.effect.getTiming();
@@ -311,6 +342,8 @@ test('Reduir el moviment durant l’escriptura mostra tot el text i cancel·la l
   assert.equal(await page.getByRole('heading', { name: 'Sara i Pau', exact: true }).count(), 1);
   assert.equal(await page.locator('.type-source').textContent(), 'Hi ha llocs, persones i moments que sempre formaran part de la nostra història. Tornem on tot va començar per a celebrar el nostre amor amb vosaltres.');
   assert.equal(await page.evaluate(() => document.getAnimations().some(animation => animation.playState === 'running')), false);
+  assert.equal(await page.locator('.hero-ornament path').evaluateAll(paths => paths.length > 0 && paths.every(path => parseFloat(getComputedStyle(path).strokeDashoffset) === 0)), true,
+    'Reduir el moviment deixa els ornaments dibuixats i sense animació');
   await page.close();
 });
 
