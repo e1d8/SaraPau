@@ -381,6 +381,45 @@ test('Les entrades apareixen en fer scroll i respecten el teclat i el moviment r
   await page.close();
 });
 
+test('Les rames entren amb un fos gradual a partir de la seua vora i esperen el dibuix si tarda a carregar', async () => {
+  const page = await browser.newPage({ viewport: { width: 1920, height: 900 }, reducedMotion: 'no-preference' });
+  let releaseImage;
+  const imageGate = new Promise(resolve => { releaseImage = resolve; });
+  await page.route('**/assets/illustrations/rames-taronger.svg', async route => {
+    await imageGate;
+    await route.continue();
+  });
+  try {
+    await page.goto(`${origin}${prefix}/index.html`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => document.querySelector('.home-hero').dataset.intro === 'complete');
+    const image = page.locator('.art-rames-taronger');
+    const message = page.locator('.gift-message');
+    await message.scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => !document.querySelector('.gift-message').classList.contains('reveal-pending'));
+    assert.equal(await image.evaluate(el => getComputedStyle(el).opacity), '0');
+    await image.evaluate(el => scrollTo({ top: scrollY + el.getBoundingClientRect().top - innerHeight + 12, behavior: 'instant' }));
+    assert.equal(await image.evaluate(el => el.getBoundingClientRect().top < innerHeight && el.parentElement.getBoundingClientRect().top > innerHeight), true,
+      'La vora de la imatge es veu abans que l’espai que ocupa en la pàgina');
+    releaseImage();
+    await page.waitForFunction(() => document.querySelector('.art-rames-taronger').getAnimations().length > 0);
+    const { start, end, samePosition } = await image.evaluate(el => {
+      const animation = el.getAnimations()[0];
+      animation.pause();
+      animation.currentTime = 100;
+      const start = Number(getComputedStyle(el).opacity);
+      const top = el.getBoundingClientRect().top;
+      animation.finish();
+      return { start, end: Number(getComputedStyle(el).opacity), samePosition: top === el.getBoundingClientRect().top };
+    });
+    assert.ok(start > 0 && start < .2, 'El dibuix entra suaument, fins i tot si el fitxer arriba amb retard');
+    assert.equal(end, 1);
+    assert.equal(samePosition, true);
+  } finally {
+    releaseImage();
+    await page.close();
+  }
+});
+
 test('Cupido flota al costat de Vindràs i els cors pugen i esclaten sense interferir amb el botó', async () => {
   for (const width of [1366, 320]) {
     const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'no-preference' });
@@ -1353,15 +1392,15 @@ test('Google rep un POST amb tots els invitats i només una recepció vàlida de
   assert.equal(await page.locator('iframe[name^="rsvp-"]').count(), 0);
   assert.equal(await page.locator('form[target^="rsvp-"]').count(), 0);
   assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
-  const heart = page.locator('.success-heart');
-  await heart.scrollIntoViewIfNeeded();
-  assert.equal(await heart.evaluate(el => {
+  const angel = page.locator('.success-angel');
+  await angel.scrollIntoViewIfNeeded();
+  assert.equal(await angel.evaluate(el => {
     const title = document.querySelector('#rsvp-success-title');
-    return el.getBoundingClientRect().bottom < title.getBoundingClientRect().top && getComputedStyle(el).maskImage.includes('/heart.svg');
+    return el.getBoundingClientRect().bottom < title.getBoundingClientRect().top && getComputedStyle(el).backgroundImage.includes('/angelet-sobre.svg');
   }), true);
-  assert.equal(await heart.evaluate(el => el.getAnimations().length), 0, 'Amb moviment reduït el cor es veu estàtic');
+  assert.equal(await angel.evaluate(el => el.getAnimations().length), 0, 'Amb moviment reduït l’angelet es veu estàtic');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.waitForFunction(() => document.querySelector('.success-heart').getAnimations().some(animation => animation.animationName === 'cupid-hover'));
+  await page.waitForFunction(() => document.querySelector('.success-angel').getAnimations().some(animation => animation.animationName === 'cupid-hover'));
   await page.close();
 });
 

@@ -5,7 +5,9 @@ export function setupMotion() {
   setupInvitationMotion(preference);
   setupCoupleMotion(preference);
   if (preference.matches || !('IntersectionObserver' in window) || !Element.prototype.animate) return;
-  const targets = [...document.querySelectorAll('.hero-copy > *, .wedding-couple, .timeline-item, .rsvp-invitation, .celebration > .banquet-divider, .closing-message, .gift-message, .bank-account, .site-footer > *')];
+  const targets = [...document.querySelectorAll('.hero-copy > *, .wedding-couple, .timeline-item, .rsvp-invitation, .art-rames-taronger, .closing-message, .gift-message, .bank-account, .site-footer > *')];
+  const orangeArtwork = document.querySelector('.art-rames-taronger');
+  let artworkReady = !orangeArtwork;
   const hero = document.querySelector('.home-hero');
   const branches = createNameOrnament('branches');
   hero.querySelector('.hero-date').append(branches);
@@ -45,8 +47,13 @@ export function setupMotion() {
     if (!element.classList.contains('reveal-pending')) return Promise.resolve();
     element.classList.remove('reveal-pending');
     visible.delete(element);
-    observer.unobserve(element);
+    observerFor(element).unobserve(element);
     if (instant || preference.matches) return Promise.resolve();
+    if (element === orangeArtwork) {
+      return track(element.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 950, easing: 'ease-in-out', fill: 'backwards',
+      }));
+    }
     const animation = element.animate([
       { opacity: 0, translate: emphasis ? '0 14px' : '0 18px', scale: emphasis ? .96 : 1 },
       { opacity: 1, translate: '0 0', scale: 1 },
@@ -182,7 +189,8 @@ export function setupMotion() {
   };
   const revealNext = () => {
     if (stopped || introActive || revealTimer !== null) return;
-    const next = targets.find(element => visible.has(element) && element.classList.contains('reveal-pending'));
+    const next = targets.find(element => visible.has(element) && element.classList.contains('reveal-pending') &&
+      (element !== orangeArtwork || artworkReady));
     if (!next) return;
     const wait = Math.max(0, lastRevealAt + 250 - performance.now());
     if (wait > 0) {
@@ -193,19 +201,35 @@ export function setupMotion() {
     reveal(next, false, { duration: 450 });
     revealNext();
   };
-  const observer = new IntersectionObserver(entries => {
+  const updateVisible = entries => {
     entries.forEach(entry => {
       if (entry.isIntersecting) visible.add(entry.target);
       else visible.delete(entry.target);
     });
     revealNext();
-  }, { threshold: .08, rootMargin: '0px 0px -24px 0px' });
+  };
+  const observer = new IntersectionObserver(updateVisible, { threshold: .08, rootMargin: '0px 0px -24px 0px' });
+  // El dibuix sobreïx del seu espai en el flux. Observar-ne la vora real.
+  const artworkObserver = new IntersectionObserver(updateVisible);
+  const observerFor = element => element === orangeArtwork ? artworkObserver : observer;
+  if (orangeArtwork) {
+    const artworkSettled = () => {
+      artworkReady = true;
+      revealNext();
+    };
+    if (orangeArtwork.decode) orangeArtwork.decode().then(artworkSettled, artworkSettled);
+    else if (orangeArtwork.complete) artworkSettled();
+    else {
+      orangeArtwork.addEventListener('load', artworkSettled, { once: true });
+      orangeArtwork.addEventListener('error', artworkSettled, { once: true });
+    }
+  }
   targets.forEach(element => {
     if (element.getBoundingClientRect().bottom > 0) element.classList.add('reveal-pending');
   });
   const observeRemaining = () => {
     targets.forEach(element => {
-      if (element.classList.contains('reveal-pending')) observer.observe(element);
+      if (element.classList.contains('reveal-pending')) observerFor(element).observe(element);
     });
   };
   const showEverything = () => {
@@ -220,6 +244,7 @@ export function setupMotion() {
     targets.forEach(element => reveal(element, true));
     animations.forEach(animation => animation.cancel());
     observer.disconnect();
+    artworkObserver.disconnect();
   };
   document.addEventListener('focusin', event => {
     // El teclat pot saltar la benvinguda i accedir al contingut immediatament.

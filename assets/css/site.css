@@ -82,11 +82,11 @@ strong{font-weight:400}
 .art-wedding-table{--illustration:url("../illustrations/wedding-table.svg");aspect-ratio:2558/1358}
 .art-calendar{--illustration:url("../illustrations/calendar.svg");aspect-ratio:295/241}
 .art-banquet{--illustration:url("../illustrations/banquet.svg");aspect-ratio:4810/1483}
-.art-rames-taronger{--illustration:url("../illustrations/rames-taronger.svg");aspect-ratio:1200/362}
 .art-rings{--illustration:url("../illustrations/rings.svg");aspect-ratio:278/183}
 .art-esglesia-major{--illustration:url("../illustrations/esglesia-major.svg");aspect-ratio:540/582}
 .art-heart{--illustration:url("../illustrations/heart.svg");aspect-ratio:1}
 .art-cupid{--illustration:url("../illustrations/cupid.svg");aspect-ratio:1}
+.art-angelet-sobre{--illustration:url("../illustrations/angelet-sobre.svg");aspect-ratio:1}
 .art-champagne{--illustration:url("../illustrations/champagne.svg");aspect-ratio:1261/2000}
 .art-taula{--illustration:url("../illustrations/taula.svg");aspect-ratio:538/490}
 .art-autobus{--illustration:url("../illustrations/autobus.svg");aspect-ratio:570/263}
@@ -95,7 +95,7 @@ strong{font-weight:400}
 .art-cotidia{--illustration:url("../illustrations/cotidia.svg");aspect-ratio:568/520}
 .art-focs-artificials{--illustration:url("../illustrations/focs-artificials.svg");aspect-ratio:560/516}
 /* Estos vectors ja tenen el verd i zones blanques: conservar els colors originals. */
-.art-taula,.art-autobus,.art-cotidia,.art-rames-taronger,.art-cotxe,.art-copes{mask-image:none;background:transparent var(--illustration) center/contain no-repeat}
+.art-taula,.art-autobus,.art-cotidia,.art-cotxe,.art-copes,.art-angelet-sobre{mask-image:none;background:transparent var(--illustration) center/contain no-repeat}
 
 .home-hero{overflow:visible;text-align:center;padding-top:96px}
 .hero-copy{padding-inline:24px}
@@ -176,7 +176,7 @@ strong{font-weight:400}
 .heart-bubble .bubble-pop{inset:-35%;width:170%;height:170%;stroke-width:1.4;opacity:0}
 .rsvp-invitation.is-floating:not(.reveal-pending) .heart-bubbles{display:block}
 .rsvp-invitation.is-floating:not(.reveal-pending) .invitation-cupid,
-.rsvp-success.is-floating .success-heart{animation:cupid-hover 5.6s ease-in-out infinite}
+.rsvp-success.is-floating .success-angel{animation:cupid-hover 5.6s ease-in-out infinite}
 .rsvp-invitation.is-floating:not(.reveal-pending) .heart-bubble{animation:heart-bubble-rise var(--duration) linear var(--delay) infinite}
 .rsvp-invitation.is-floating:not(.reveal-pending) .bubble-heart{animation:heart-bubble-form var(--duration) ease-in-out var(--delay) infinite}
 .rsvp-invitation.is-floating:not(.reveal-pending) .bubble-pop{animation:heart-bubble-pop var(--duration) ease-out var(--delay) infinite}
@@ -278,7 +278,7 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 [aria-invalid="true"]{border-width:2.5px!important;border-style:dotted!important}
 .form-status{margin-bottom:12px}
 .rsvp-success{position:relative;text-align:center;padding:30px 0}
-.success-heart{position:absolute;left:50%;bottom:calc(100% - 14px);translate:-50% 0;width:clamp(72px,14vw,104px);transform:rotate(-8deg);transform-origin:55% 60%}
+.success-angel{position:absolute;left:50%;bottom:calc(100% - 14px);translate:-50% 0;width:clamp(72px,14vw,104px);transform:rotate(-8deg);transform-origin:55% 60%}
 .success-title{font-size:inherit;font-weight:300;line-height:1.45;color:var(--dark)}
 .success-thanks{font-weight:400;line-height:1.12;color:var(--dark)}
 .rsvp-success .icon-heart{color:#000;display:block;width:32px;height:32px;margin:12px auto 0}
@@ -296,7 +296,7 @@ html:has(.guest-dialog[open],.loading-dialog[open]){overflow:hidden}
 
 .celebration{padding-top:12px;padding-bottom:60px;text-align:center}
 .banquet-divider{position:relative;width:100%;aspect-ratio:4810/1483;margin-inline:auto}
-.banquet-divider .art{position:absolute;top:50%;left:50%;width:110vw;transform:translate(-50%,-50%);z-index:-1}
+.art-rames-taronger{position:absolute;top:50%;left:50%;width:110vw;height:auto;transform:translate(-50%,-50%);z-index:-1;pointer-events:none}
 .closing-message{max-width:700px;margin:44px auto 0;font-size:23px;color:var(--primary);font-weight:400;line-height:1.5;text-transform:uppercase;text-wrap:balance;text-align:center}
 .rsvp>.closing-message{margin:0 auto 128px}
 .gift-message{max-width:700px;margin:60px auto 0;font-weight:400;line-height:1.12;color:var(--dark);text-wrap:pretty}
